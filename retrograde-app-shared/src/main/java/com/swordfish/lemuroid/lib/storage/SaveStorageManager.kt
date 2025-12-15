@@ -17,7 +17,6 @@ import javax.inject.Inject
 class SaveStorageManager @Inject constructor(
     private val appContext: Context,
     private val directoriesManager: DirectoriesManager,
-    private val sharedPreferences: SharedPreferences,
 ) {
     private val customSavesDirectoryUri: Uri?
         get() = directoriesManager.getCustomSavesDirectoryUri()?.let { Uri.parse(it) }
