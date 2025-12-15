@@ -76,14 +76,14 @@ private fun MiscSettings(
 ) {
     val context = LocalContext.current
 
-    val saveDirectoryUri = state.saveDirectoryUri
+    val customSavesDirectoryUri = state.saveDirectoryUri
     val emptyDirectory = stringResource(R.string.none)
 
     val saveDirectoryName =
         remember(state.saveDirectoryUri) {
             runCatching {
-                if (saveDirectoryUri != null) {
-                    DocumentFile.fromTreeUri(context, Uri.parse(saveDirectoryUri))?.name
+                if (customSavesDirectoryUri != null) {
+                    DocumentFile.fromTreeUri(context, Uri.parse(customSavesDirectoryUri))?.name
                 } else {
                     null
                 }
