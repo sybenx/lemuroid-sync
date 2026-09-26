@@ -17,3 +17,6 @@ project.properties
 .externalNativeBuild
 local.properties
 release.jks
+
+# Kotlin compiler daemon build cache (created locally, not part of the build output)
+.kotlin/
