@@ -10,6 +10,7 @@ import com.swordfish.lemuroid.common.coroutines.safeLaunch
 import com.swordfish.lemuroid.lib.android.RetrogradeActivity
 import com.swordfish.lemuroid.lib.storage.SaveStorageManager
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import javax.inject.Inject
 
@@ -52,8 +53,9 @@ class SaveStorageFolderPickerLauncher : RetrogradeActivity() {
 
         val newValue = resultData?.data
         if (requestCode == REQUEST_CODE_PICK_FOLDER && resultCode == Activity.RESULT_OK && newValue != null) {
-            saveStorageManager.setCustomDirectory(newValue)
-            GlobalScope.safeLaunch {
+            // setCustomDirectory() commits synchronously to disk, so keep it off the main thread too.
+            GlobalScope.safeLaunch(Dispatchers.IO) {
+                saveStorageManager.setCustomDirectory(newValue)
                 saveStorageManager.syncAll()
             }
         }

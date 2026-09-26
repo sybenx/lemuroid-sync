@@ -211,15 +211,23 @@ class SaveStorageManager(
                 )
             val children =
                 contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                    // Look up columns by name rather than assuming they come back in projection order: not every
+                    // SAF provider (this feature's whole point is talking to third-party ones) honors that order.
+                    val idIndex = cursor.getColumnIndexOrThrow(Document.COLUMN_DOCUMENT_ID)
+                    val nameIndex = cursor.getColumnIndexOrThrow(Document.COLUMN_DISPLAY_NAME)
+                    val mimeIndex = cursor.getColumnIndexOrThrow(Document.COLUMN_MIME_TYPE)
+                    val modifiedIndex = cursor.getColumnIndexOrThrow(Document.COLUMN_LAST_MODIFIED)
                     buildList {
                         while (cursor.moveToNext()) {
-                            val name = cursor.getString(1) ?: continue
+                            val name = cursor.getString(nameIndex) ?: continue
+                            val documentId = cursor.getString(idIndex)
+                            val lastModified = if (cursor.isNull(modifiedIndex)) 0L else cursor.getLong(modifiedIndex)
                             val entry =
                                 RemoteEntry(
-                                    uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(0)),
+                                    uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId),
                                     name = name,
-                                    isDirectory = cursor.getString(2) == Document.MIME_TYPE_DIR,
-                                    lastModified = if (cursor.isNull(3)) 0L else cursor.getLong(3),
+                                    isDirectory = cursor.getString(mimeIndex) == Document.MIME_TYPE_DIR,
+                                    lastModified = lastModified,
                                 )
                             add(entry)
                         }
@@ -289,9 +297,10 @@ class SaveStorageManager(
             val target = existing?.uri ?: createDocument(remoteDir, MIME_TYPE_BINARY, localFile.name) ?: return
 
             // "wt" is required: plain "w" does not truncate on some providers, leaving stale trailing bytes.
-            contentResolver.openOutputStream(target, "wt")?.use { outputStream ->
-                localFile.inputStream().use { it.copyTo(outputStream) }
-            }
+            // A null stream means the write did not happen -- bail out without touching the timestamp below,
+            // or a failed write would look already-synced and never be retried.
+            val outputStream = contentResolver.openOutputStream(target, "wt") ?: return
+            outputStream.use { localFile.inputStream().use { input -> input.copyTo(it) } }
 
             // Align timestamps so that the next sync does not copy the file back.
             queryLastModified(target)?.let { localFile.setLastModified(it) }
@@ -334,7 +343,10 @@ class SaveStorageManager(
         return name.isNotEmpty() && name != "." && name != ".." && !name.contains('/')
     }
 
-    /** Leftovers of AtomicFile writes, which should never be mirrored. */
+    /**
+     * AtomicFile leaves a ".bak" backup of the previous version next to the real file; that should never be
+     * mirrored. ".new" is filtered too as a defensive catch-all, though nothing in this codebase produces it.
+     */
     private fun isTemporaryFile(name: String): Boolean {
         return name.endsWith(".new") || name.endsWith(".bak")
     }
