@@ -24,7 +24,6 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.activity.result.contract.ActivityResultContracts
 import com.fredporciuncula.flow.preferences.FlowSharedPreferences
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.favorites.FavoritesScreen
@@ -71,12 +70,12 @@ import com.swordfish.lemuroid.lib.library.db.entity.Game
 import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import com.swordfish.lemuroid.lib.storage.DirectoriesManager
+import com.swordfish.lemuroid.lib.storage.SaveStorageManager
 import dagger.Provides
 import de.charlex.compose.material3.HtmlText
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import javax.inject.Inject
-import android.content.SharedPreferences
 
 @OptIn(DelicateCoroutinesApi::class)
 class MainActivity : RetrogradeComponentActivity(), BusyActivity {
@@ -102,25 +101,10 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
     lateinit var settingsInteractor: SettingsInteractor
 
     @Inject
-    lateinit var sharedPreferences: SharedPreferences
+    lateinit var saveStorageManager: SaveStorageManager
 
     @Inject
     lateinit var inputDeviceManager: InputDeviceManager
-
-    private val pickSavesFolder =
-        registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            if (uri != null) {
-                contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-                FlowSharedPreferences(sharedPreferences).getString("pref_key_save_storage_folder").set(uri.toString())
-            }
-        }
-
-    private fun changeSaveStorageFolder() {
-        pickSavesFolder.launch(null)
-    }
 
     private val reviewManager = ReviewManager()
 
@@ -291,11 +275,15 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                                             applicationContext,
                                             settingsInteractor,
                                             saveSyncManager,
-                                            sharedPreferences,
+                                            FlowSharedPreferences(
+                                                SharedPreferencesHelper.getLegacySharedPreferences(
+                                                    applicationContext,
+                                                ),
+                                            ),
+                                            saveStorageManager,
                                         ),
                                 ),
                             navController = navController,
-                            onChangeSaveStorageFolder = { changeSaveStorageFolder() },
                         )
                     }
                     composable(MainRoute.SETTINGS_ADVANCED) {

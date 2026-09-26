@@ -19,6 +19,7 @@ import com.swordfish.lemuroid.common.coroutines.safeCollect
 import com.swordfish.lemuroid.common.kotlin.NTuple2
 import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
+import com.swordfish.lemuroid.lib.storage.SaveStorageManager
 import dagger.android.support.AndroidSupportInjection
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -44,6 +45,9 @@ class TVSettingsFragment : LeanbackPreferenceFragmentCompat() {
 
     @Inject
     lateinit var saveSyncManager: SaveSyncManager
+
+    @Inject
+    lateinit var saveStorageManager: SaveStorageManager
 
     lateinit var saveSyncPreferences: SaveSyncPreferences
 
@@ -122,6 +126,7 @@ class TVSettingsFragment : LeanbackPreferenceFragmentCompat() {
     override fun onResume() {
         super.onResume()
         refreshSaveSyncScreen()
+        refreshSaveStorageFolder()
     }
 
     private fun getGamePadPreferenceScreen(): PreferenceScreen? {
@@ -130,6 +135,10 @@ class TVSettingsFragment : LeanbackPreferenceFragmentCompat() {
 
     private fun getSaveSyncScreen(): PreferenceScreen? {
         return findPreference(resources.getString(R.string.pref_key_open_save_sync_settings))
+    }
+
+    private fun getSaveStorageFolderPreference(): Preference? {
+        return findPreference(resources.getString(R.string.pref_key_open_save_storage_folder))
     }
 
     private fun getCoresSelectionScreen(): PreferenceScreen? {
@@ -175,6 +184,13 @@ class TVSettingsFragment : LeanbackPreferenceFragmentCompat() {
         }
     }
 
+    private fun refreshSaveStorageFolder() {
+        lifecycleScope.launch {
+            val directoryName = saveStorageManager.getCustomDirectoryName()
+            getSaveStorageFolderPreference()?.summary = directoryName ?: getString(R.string.none)
+        }
+    }
+
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
         if (saveSyncPreferences.onPreferenceTreeClick(activity, preference)) {
             return true
@@ -186,6 +202,7 @@ class TVSettingsFragment : LeanbackPreferenceFragmentCompat() {
                     handleResetGamePadBindings()
                 }
             getString(R.string.pref_key_reset_settings) -> handleResetSettings()
+            getString(R.string.pref_key_open_save_storage_folder) -> settingsInteractor.changeSaveStorageFolder()
         }
         return super.onPreferenceTreeClick(preference)
     }

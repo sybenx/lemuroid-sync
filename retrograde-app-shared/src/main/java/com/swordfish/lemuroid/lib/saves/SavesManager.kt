@@ -24,6 +24,7 @@ class SavesManager(
             val result =
                 runCatchingWithRetry(FILE_ACCESS_RETRIES) {
                     val saveFile = getSaveFile(getSaveRAMFileName(game))
+                    saveStorageManager.get().pull(saveFile)
                     if (saveFile.exists() && saveFile.length() > 0) {
                         saveFile.readBytes()
                     } else {
@@ -48,7 +49,7 @@ class SavesManager(
 
                     val saveFile = getSaveFile(getSaveRAMFileName(game))
                     saveFile.writeBytesAtomic(data)
-                    saveStorageManager.get().syncToCustomDirectory()
+                    saveStorageManager.get().push(saveFile)
                 }
             result.getOrNull()
         }

@@ -5,4 +5,6 @@
     <string name="pref_key_last_save_sync" translatable="false">last_save_sync</string>
     <string name="pref_key_extenral_folder" translatable="false">external_folder</string>
     <string name="pref_key_legacy_external_folder" translatable="false">legacy_external_folder</string>
+    <string name="pref_key_save_storage_enabled" translatable="false">save_storage_enabled</string>
+    <string name="pref_key_save_storage_folder" translatable="false">save_storage_folder</string>
 </resources>

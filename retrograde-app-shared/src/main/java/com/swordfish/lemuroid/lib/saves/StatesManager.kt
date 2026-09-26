@@ -25,7 +25,6 @@ class StatesManager(
         index: Int,
     ): SaveState? =
         withContext(Dispatchers.IO) {
-            saveStorageManager.get().syncFromCustomDirectory() // Sync before reading
             assert(index in 0 until MAX_STATES)
             getSaveState(getSlotSaveFileName(game, index), coreID.coreName)
         }
@@ -38,7 +37,6 @@ class StatesManager(
     ) = withContext(Dispatchers.IO) {
         assert(index in 0 until MAX_STATES)
         setSaveState(getSlotSaveFileName(game, index), coreID.coreName, saveState)
-        saveStorageManager.get().syncToCustomDirectory() // Sync after writing
     }
 
     suspend fun getAutoSaveInfo(
@@ -46,8 +44,8 @@ class StatesManager(
         coreID: CoreID,
     ): SaveInfo =
         withContext(Dispatchers.IO) {
-            saveStorageManager.get().syncFromCustomDirectory() // Sync before reading
             val autoSaveFile = getStateFile(getAutoSaveFileName(game), coreID.coreName)
+            saveStorageManager.get().pull(autoSaveFile)
             val autoSaveHasData = autoSaveFile.length() > 0
             SaveInfo(autoSaveFile.exists() && autoSaveHasData, autoSaveFile.lastModified())
         }
@@ -56,7 +54,6 @@ class StatesManager(
         game: Game,
         coreID: CoreID,
     ) = withContext(Dispatchers.IO) {
-        saveStorageManager.get().syncFromCustomDirectory() // Sync before reading
         getSaveState(getAutoSaveFileName(game), coreID.coreName)
     }
 
@@ -66,7 +63,6 @@ class StatesManager(
         saveState: SaveState,
     ) = withContext(Dispatchers.IO) {
         setSaveState(getAutoSaveFileName(game), coreID.coreName, saveState)
-        saveStorageManager.get().syncToCustomDirectory() // Sync after writing
     }
 
     suspend fun getSavedSlotsInfo(
@@ -74,9 +70,9 @@ class StatesManager(
         coreID: CoreID,
     ): List<SaveInfo> =
         withContext(Dispatchers.IO) {
-            saveStorageManager.get().syncFromCustomDirectory() // Sync before reading
-            (0 until MAX_STATES)
-                .map { getStateFile(getSlotSaveFileName(game, it), coreID.coreName) }
+            val slotFiles = (0 until MAX_STATES).map { getStateFile(getSlotSaveFileName(game, it), coreID.coreName) }
+            saveStorageManager.get().pull(*slotFiles.toTypedArray())
+            slotFiles
                 .map { SaveInfo(it.exists(), it.lastModified()) }
                 .toList()
         }
@@ -88,6 +84,7 @@ class StatesManager(
         return runCatchingWithRetry(FILE_ACCESS_RETRIES) {
             val saveFile = getStateFile(fileName, coreName)
             val metadataFile = getMetadataStateFile(fileName, coreName)
+            saveStorageManager.get().pull(saveFile, metadataFile)
             if (saveFile.exists()) {
                 val byteArray = saveFile.readBytesUncompressedAtomic()
                 val stateMetadata =
@@ -112,6 +109,10 @@ class StatesManager(
         runCatchingWithRetry(FILE_ACCESS_RETRIES) {
             writeStateToDisk(fileName, coreName, saveState.state)
             writeMetadataToDisk(fileName, coreName, saveState.metadata)
+            saveStorageManager.get().push(
+                getStateFile(fileName, coreName),
+                getMetadataStateFile(fileName, coreName),
+            )
         }
     }
 

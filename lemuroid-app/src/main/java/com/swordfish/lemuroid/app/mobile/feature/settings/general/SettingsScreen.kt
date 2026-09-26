@@ -30,7 +30,6 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel,
     navController: NavController,
-    onChangeSaveStorageFolder: () -> Unit,
 ) {
     val state =
         viewModel.uiState
@@ -60,8 +59,8 @@ fun SettingsScreen(
             indexingInProgress = indexingInProgress,
             isSaveSyncSupported = state.isSaveSyncSupported,
             navController = navController,
-            state = state,
-            onChangeSaveStorageFolder = { onChangeSaveStorageFolder() },
+            saveStorageDirectory = state.saveStorageDirectory,
+            onChangeSaveStorageFolder = { viewModel.changeSaveStorageFolder() },
         )
     }
 }
@@ -71,24 +70,11 @@ private fun MiscSettings(
     indexingInProgress: Boolean,
     isSaveSyncSupported: Boolean,
     navController: NavController,
-    state: SettingsViewModel.State,
+    saveStorageDirectory: String?,
     onChangeSaveStorageFolder: () -> Unit,
 ) {
-    val context = LocalContext.current
-
-    val customSavesDirectoryUri = state.saveDirectoryUri
-    val emptyDirectory = stringResource(R.string.none)
-
-    val saveDirectoryName =
-        remember(state.saveDirectoryUri) {
-            runCatching {
-                if (customSavesDirectoryUri != null) {
-                    DocumentFile.fromTreeUri(context, Uri.parse(customSavesDirectoryUri))?.name
-                } else {
-                    null
-                }
-            }.getOrNull() ?: emptyDirectory
-        }
+    val saveStorageEnabled =
+        booleanPreferenceState(com.swordfish.lemuroid.lib.R.string.pref_key_save_storage_enabled, false)
 
     LemuroidCardSettingsGroup(
         title = { Text(text = stringResource(id = R.string.settings_category_misc)) },
@@ -102,13 +88,17 @@ private fun MiscSettings(
                 onClick = { navController.navigateToRoute(MainRoute.SETTINGS_SAVE_SYNC) },
             )
         }
-        LemuroidSettingsMenuLink(
-            title = { Text(text = stringResource(id = R.string.settings_title_saves_directory)) },
-            subtitle = { Text(text = saveDirectoryName) },
-            onClick = { onChangeSaveStorageFolder() },
-            enabled = !indexingInProgress,
+        LemuroidSettingsSwitch(
+            state = saveStorageEnabled,
+            title = { Text(text = stringResource(id = R.string.settings_title_save_storage)) },
+            subtitle = { Text(text = stringResource(id = R.string.settings_description_save_storage)) },
         )
-
+        LemuroidSettingsMenuLink(
+            enabled = saveStorageEnabled.value,
+            title = { Text(text = stringResource(id = R.string.settings_title_save_storage_folder)) },
+            subtitle = { Text(text = saveStorageDirectory ?: stringResource(id = R.string.none)) },
+            onClick = { onChangeSaveStorageFolder() },
+        )
         LemuroidSettingsMenuLink(
             title = { Text(text = stringResource(id = R.string.settings_title_open_cores_selection)) },
             subtitle = {

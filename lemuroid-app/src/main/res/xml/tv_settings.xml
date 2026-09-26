@@ -74,6 +74,20 @@
             app:summary="@string/settings_description_save_sync"
             app:iconSpaceReserved="false"/>
 
+        <SwitchPreference
+            android:key="@string/pref_key_save_storage_enabled"
+            android:title="@string/settings_title_save_storage"
+            android:summary="@string/settings_description_save_storage"
+            app:iconSpaceReserved="false"
+            android:defaultValue="false"/>
+
+        <Preference
+            android:key="@string/pref_key_open_save_storage_folder"
+            android:title="@string/settings_title_save_storage_folder"
+            android:summary="@string/none"
+            app:dependency="@string/pref_key_save_storage_enabled"
+            app:iconSpaceReserved="false"/>
+
         <PreferenceScreen
             android:key="@string/pref_key_open_cores_selection"
             android:title="@string/settings_title_open_cores_selection"
