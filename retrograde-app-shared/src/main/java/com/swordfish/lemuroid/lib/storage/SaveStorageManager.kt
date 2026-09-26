@@ -183,13 +183,23 @@ class SaveStorageManager(
         val lastModified: Long,
     )
 
-    /** Talks to DocumentsContract directly: DocumentFile issues a separate query for every attribute. */
+    /**
+     * Talks to DocumentsContract directly: DocumentFile issues a separate query for every attribute.
+     *
+     * A single [pull]/[push]/[syncAll] call can touch several files that share a directory (e.g. a state file
+     * and its metadata sibling, or four save slots). [listChildren] results are cached for this tree's lifetime
+     * -- one call from [SaveStorageManager] -- so those files resolve their shared parent directory only once
+     * instead of re-querying the SAF provider (a real round-trip, sometimes over the network) per file.
+     */
     private inner class RemoteTree(private val treeUri: Uri) {
         private val contentResolver = appContext.contentResolver
+        private val childrenCache = mutableMapOf<Uri, List<RemoteEntry>>()
 
         val rootUri: Uri = rootDocumentUri(treeUri)
 
         fun listChildren(parent: Uri): List<RemoteEntry> {
+            childrenCache[parent]?.let { return it }
+
             val childrenUri =
                 DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, DocumentsContract.getDocumentId(parent))
             val projection =
@@ -199,21 +209,25 @@ class SaveStorageManager(
                     Document.COLUMN_MIME_TYPE,
                     Document.COLUMN_LAST_MODIFIED,
                 )
-            return contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
-                buildList {
-                    while (cursor.moveToNext()) {
-                        val name = cursor.getString(1) ?: continue
-                        val entry =
-                            RemoteEntry(
-                                uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(0)),
-                                name = name,
-                                isDirectory = cursor.getString(2) == Document.MIME_TYPE_DIR,
-                                lastModified = if (cursor.isNull(3)) 0L else cursor.getLong(3),
-                            )
-                        add(entry)
+            val children =
+                contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                    buildList {
+                        while (cursor.moveToNext()) {
+                            val name = cursor.getString(1) ?: continue
+                            val entry =
+                                RemoteEntry(
+                                    uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(0)),
+                                    name = name,
+                                    isDirectory = cursor.getString(2) == Document.MIME_TYPE_DIR,
+                                    lastModified = if (cursor.isNull(3)) 0L else cursor.getLong(3),
+                                )
+                            add(entry)
+                        }
                     }
-                }
-            } ?: emptyList()
+                } ?: emptyList()
+
+            childrenCache[parent] = children
+            return children
         }
 
         fun resolveDirectory(
@@ -303,6 +317,9 @@ class SaveStorageManager(
             mimeType: String,
             name: String,
         ): Uri? {
+            // Invalidate rather than patch: a sibling call earlier in this same batch may have cached parent's
+            // listing before this document existed. The next listChildren(parent) will requery and see it.
+            childrenCache.remove(parent)
             return DocumentsContract.createDocument(contentResolver, parent, mimeType, name)
         }
 
