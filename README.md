@@ -1,3 +1,13 @@
+# Lemuroid Sync
+
+A fork of [Lemuroid](https://github.com/Swordfish90/Lemuroid) that keeps saves in sync with other devices. Releases are built automatically from each new Lemuroid release; install them with [Obtainium](https://github.com/ImranR98/Obtainium) using this repo's URL.
+
+- **Syncthing support with a custom folder:** Settings → *Mirror saves to folder* copies saves to a folder you pick, so Syncthing (or BasicSync) can sync it. Blank saves are never synced, unchanged saves are not rewritten, and the app warns before playing if the folder has no saves yet.
+- **Miyoo handhelds running spruceOS:** works with RetroArch's flat save folder (`sort_savefiles_enable = "false"`), syncing `Saves/saves` with the folder above. Settings → *DS save location* → *Miyoo Flip / DSperate* stores DS saves as `dsperate/<game>.sav`, like DSperate. [`spruceos/skip-stale-resume.sh`](spruceos/skip-stale-resume.sh) stops spruceOS from resuming an older auto state over a newer synced save.
+- **Installs next to Lemuroid** (app ID `com.swordfish.lemuroid.sync`). ROM file names must match across devices for saves to line up.
+
+---
+
 # Lemuroid
 
 [<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"

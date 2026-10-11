@@ -44,6 +44,10 @@ jobs:
           if ! git merge --no-edit "upstream-${upstream_tag}"; then
             # Upstream workflow files we deleted on purpose: keep them deleted.
             git diff --name-only --diff-filter=U | grep '^\.github/workflows/' | xargs -r git rm -q
+            # Our README intro sits on top of upstream's; keep ours rather than block the release.
+            if git diff --name-only --diff-filter=U | grep -qx 'README.md'; then
+              git checkout --ours README.md && git add README.md
+            fi
             if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
               files=$(git diff --name-only --diff-filter=U | sed 's/^/- /')
               git merge --abort
