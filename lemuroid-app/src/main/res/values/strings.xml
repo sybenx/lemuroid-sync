@@ -87,6 +87,9 @@
     <string name="settings_description_save_storage">Keep a copy of saves and states in a folder of your choice</string>
     <string name="settings_title_save_storage_folder">Saves folder</string>
     <string name="settings_title_ds_save_location">DS save location</string>
+    <string name="save_storage_empty_title">No synced saves yet</string>
+    <string name="save_storage_empty_message">The mirrored saves folder is empty, so saves from your other devices have not arrived yet. Wait for your sync app to finish, or play anyway and start without them.</string>
+    <string name="save_storage_empty_play">Play anyway</string>
     <string name="ds_save_location_names_default">Default (&lt;game&gt;.srm)</string>
     <string name="ds_save_location_names_folder">Separate DS folder (nds/&lt;game&gt;.srm)</string>
     <string name="ds_save_location_names_dsperate">Miyoo Flip / DSperate (dsperate/&lt;game&gt;.sav)</string>

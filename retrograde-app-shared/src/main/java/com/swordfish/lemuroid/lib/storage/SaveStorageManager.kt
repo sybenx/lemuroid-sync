@@ -128,6 +128,25 @@ class SaveStorageManager(
             ?.let { Uri.parse(it) }
     }
 
+    /**
+     * lemuroid-sync: true when mirroring is on but the folder holds no saves yet, which usually means the
+     * sync app has not delivered them. Playing then starts from scratch and can diverge from other devices.
+     */
+    suspend fun isMirrorSavesFolderEmpty(): Boolean {
+        if (!isEnabled()) return false
+        val treeUri = getCustomDirectoryUri() ?: return false
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val tree = RemoteTree(treeUri)
+                val savesDir = tree.resolveDirectory(tree.rootUri, listOf(SAVES_DIRECTORY), create = false)
+                savesDir == null || !tree.containsAnyFile(savesDir)
+            }.getOrElse {
+                Timber.e(it, "Unable to inspect custom saves directory: %s", treeUri)
+                false
+            }
+        }
+    }
+
     /** Full two-way sync of the saves and states directories. */
     suspend fun syncAll() =
         withCustomDirectory { tree ->
@@ -256,6 +275,12 @@ class SaveStorageManager(
 
             childrenCache[parent] = children
             return children
+        }
+
+        fun containsAnyFile(dir: Uri): Boolean {
+            return listChildren(dir).any { child ->
+                !isTemporaryFile(child.name) && (!child.isDirectory || containsAnyFile(child.uri))
+            }
         }
 
         fun resolveDirectory(
