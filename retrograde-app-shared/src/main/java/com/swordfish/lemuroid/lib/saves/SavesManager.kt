@@ -24,14 +24,10 @@ class SavesManager(
         return withContext(Dispatchers.IO) {
             val result =
                 runCatchingWithRetry(FILE_ACCESS_RETRIES) {
-                    val saveFile = getSaveRAMFile(game)
-                    val legacyFile = getLegacySaveRAMFile(game)
-                    saveStorageManager.get().pull(*listOfNotNull(saveFile, legacyFile).toTypedArray())
-                    if (saveFile.exists() && saveFile.length() > 0) {
-                        saveFile.readBytes()
-                    } else if (legacyFile != null && legacyFile.exists() && legacyFile.length() > 0) {
-                        // DSperate layout just switched on: start from the game's existing .srm save.
-                        legacyFile.readBytes()
+                    saveStorageManager.get().pull(*getSaveRAMCandidates(game).toTypedArray())
+                    val loadedFile = getLoadedSaveRAMFile(game)
+                    if (loadedFile.exists() && loadedFile.length() > 0) {
+                        loadedFile.readBytes()
                     } else {
                         val savesMigrator = systemCoreConfig.getSavesMigrator()
                         savesMigrator?.loadPreviousSaveForGame(game, directoriesManager)
@@ -63,42 +59,56 @@ class SavesManager(
 
     suspend fun getSaveRAMInfo(game: Game): SaveInfo {
         return withContext(Dispatchers.IO) {
-            val saveFile = getSaveRAMFile(game)
+            val saveFile = getLoadedSaveRAMFile(game)
             val fileExists = saveFile.exists() && saveFile.length() > 0
             SaveInfo(fileExists, saveFile.lastModified())
         }
     }
 
-    /** The save RAM file for [game], honoring the DSperate layout for DS games when it is enabled. */
+    /** The file save RAM for [game] is written to, following the DS save location setting. */
     fun getSaveRAMFile(game: Game): File {
-        return File(directoriesManager.getSavesDirectory(), getSaveRAMFileName(game))
+        return getSaveRAMCandidates(game).first()
     }
 
-    /** The file the current save RAM was read from: the DSperate one, or the legacy .srm until it is first written. */
+    /**
+     * The file the save RAM is read from: the newest non-empty file among every location the game may
+     * have used, so switching the DS save location in either direction never picks up a stale copy.
+     */
     fun getLoadedSaveRAMFile(game: Game): File {
-        val saveFile = getSaveRAMFile(game)
-        val legacyFile = getLegacySaveRAMFile(game)
-        return if (!saveFile.exists() && legacyFile != null && legacyFile.exists()) legacyFile else saveFile
+        val candidates = getSaveRAMCandidates(game)
+        return candidates
+            .filter { it.isFile && it.length() > 0 }
+            .sortedWith(compareBy<File> { isBlankSave(it) }.thenByDescending { it.lastModified() })
+            .firstOrNull()
+            ?: candidates.first()
     }
 
-    /** The plain "<rom>.srm" file a DS game used before the DSperate layout was enabled, if it differs. */
-    private fun getLegacySaveRAMFile(game: Game): File? {
-        if (!usesDsperateLayout(game)) return null
-        return File(directoriesManager.getSavesDirectory(), "${game.fileName.substringBeforeLast(".")}.srm")
+    /** A save RAM the game never wrote to (all one byte value) loses to any real save. */
+    private fun isBlankSave(file: File): Boolean {
+        val data = file.readBytes()
+        return data.all { it == data[0] }
     }
 
-    private fun usesDsperateLayout(game: Game): Boolean {
-        return game.systemId == SystemID.NDS.dbname && saveStorageManager.get().isDsperateLayoutEnabled()
-    }
-
-    /** This name should make it compatible with RetroArch so that users can freely sync saves across the two application. */
-    private fun getSaveRAMFileName(game: Game): String {
+    /** The selected save file first, then (for DS games) the other locations it may have lived in. */
+    private fun getSaveRAMCandidates(game: Game): List<File> {
+        val savesDirectory = directoriesManager.getSavesDirectory()
         val baseName = game.fileName.substringBeforeLast(".")
-        return if (usesDsperateLayout(game)) "$DSPERATE_DIRECTORY/$baseName.sav" else "$baseName.srm"
+        // This name should make it compatible with RetroArch so that users can freely sync saves across the two application.
+        val defaultFile = File(savesDirectory, "$baseName.srm")
+        if (game.systemId != SystemID.NDS.dbname) return listOf(defaultFile)
+
+        val folderFile = File(savesDirectory, "$DS_DIRECTORY/$baseName.srm")
+        val dsperateFile = File(savesDirectory, "$DSPERATE_DIRECTORY/$baseName.sav")
+        return when (saveStorageManager.get().getDsSaveLocation()) {
+            SaveStorageManager.DS_SAVE_LOCATION_FOLDER -> listOf(folderFile, defaultFile, dsperateFile)
+            SaveStorageManager.DS_SAVE_LOCATION_DSPERATE -> listOf(dsperateFile, defaultFile, folderFile)
+            else -> listOf(defaultFile, folderFile, dsperateFile)
+        }
     }
 
     companion object {
         private const val FILE_ACCESS_RETRIES = 3
+        private const val DS_DIRECTORY = "nds"
         private const val DSPERATE_DIRECTORY = "dsperate"
     }
 }

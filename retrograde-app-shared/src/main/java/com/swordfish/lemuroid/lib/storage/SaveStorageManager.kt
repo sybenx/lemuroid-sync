@@ -44,16 +44,26 @@ class SaveStorageManager(
 
     private val dsperateLayoutKey = appContext.getString(R.string.pref_key_dsperate_ds_saves)
 
+    private val dsSaveLocationKey = appContext.getString(R.string.pref_key_ds_save_location)
+
     fun isEnabled(): Boolean {
         return sharedPreferences.get().getBoolean(enabledPreferenceKey, false)
     }
 
     /**
-     * lemuroid-sync: store DS saves the way DSperate (spruceOS on the Miyoo Flip) does, as
-     * "dsperate/<rom name>.sav", so both devices share one file in a synced saves folder.
+     * lemuroid-sync: where DS games keep their save RAM, one of [DS_SAVE_LOCATIONS]:
+     * "default" (<rom>.srm), "folder" (nds/<rom>.srm) or "dsperate" (dsperate/<rom>.sav, the layout
+     * DSperate uses on spruceOS, so a synced saves folder is shared as-is with a Miyoo Flip).
      */
-    fun isDsperateLayoutEnabled(): Boolean {
-        return sharedPreferences.get().getBoolean(dsperateLayoutKey, false)
+    fun getDsSaveLocation(): String {
+        val preferences = sharedPreferences.get()
+        val value = preferences.getString(dsSaveLocationKey, null)
+        return when {
+            value in DS_SAVE_LOCATIONS -> value!!
+            // Builds before the list setting had an on/off switch for the DSperate layout.
+            preferences.getBoolean(dsperateLayoutKey, false) -> DS_SAVE_LOCATION_DSPERATE
+            else -> DS_SAVE_LOCATION_DEFAULT
+        }
     }
 
     fun getCustomDirectoryUri(): Uri? {
@@ -303,6 +313,9 @@ class SaveStorageManager(
         ) {
             if (!localFile.isFile) return
             if (existing != null && existing.lastModified >= localFile.lastModified()) return
+            // A save the game never wrote to (all 0x00 or all 0xFF) carries no progress; mirroring it
+            // would make it the newest copy everywhere and bury a real save from another device.
+            if (isBlankFile(localFile)) return
 
             val target = existing?.uri ?: createDocument(remoteDir, MIME_TYPE_BINARY, localFile.name) ?: return
 
@@ -320,9 +333,12 @@ class SaveStorageManager(
             remote: RemoteEntry,
             localFile: File,
         ) {
-            if (localFile.exists() && remote.lastModified <= localFile.lastModified()) return
+            val localIsBlank = isBlankFile(localFile)
+            if (localFile.exists() && remote.lastModified <= localFile.lastModified() && !localIsBlank) return
 
             val data = contentResolver.openInputStream(remote.uri)?.use { it.readBytes() } ?: return
+            // Never replace anything with a blank copy, and a blank local file gives way to any real one.
+            if (isBlank(data)) return
             localFile.parentFile?.mkdirs()
             localFile.writeBytesAtomic(data)
 
@@ -349,6 +365,15 @@ class SaveStorageManager(
         }
     }
 
+    private fun isBlank(data: ByteArray): Boolean {
+        return data.isEmpty() || data.all { it == data[0] }
+    }
+
+    /** Only save RAM sized files are inspected; states are compressed and never uniform. */
+    private fun isBlankFile(file: File): Boolean {
+        return file.isFile && file.length() <= BLANK_CHECK_MAX_BYTES && isBlank(file.readBytes())
+    }
+
     private fun isSafeFileName(name: String): Boolean {
         return name.isNotEmpty() && name != "." && name != ".." && !name.contains('/')
     }
@@ -369,5 +394,12 @@ class SaveStorageManager(
         private const val SAVES_DIRECTORY = "saves"
         private const val STATES_DIRECTORY = "states"
         private const val MIME_TYPE_BINARY = "application/octet-stream"
+
+        private const val BLANK_CHECK_MAX_BYTES = 2L * 1024 * 1024
+
+        const val DS_SAVE_LOCATION_DEFAULT = "default"
+        const val DS_SAVE_LOCATION_FOLDER = "folder"
+        const val DS_SAVE_LOCATION_DSPERATE = "dsperate"
+        val DS_SAVE_LOCATIONS = listOf(DS_SAVE_LOCATION_DEFAULT, DS_SAVE_LOCATION_FOLDER, DS_SAVE_LOCATION_DSPERATE)
     }
 }

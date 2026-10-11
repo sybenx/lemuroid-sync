@@ -8,4 +8,5 @@
     <string name="pref_key_save_storage_enabled" translatable="false">save_storage_enabled</string>
     <string name="pref_key_save_storage_folder" translatable="false">save_storage_folder</string>
     <string name="pref_key_dsperate_ds_saves" translatable="false">dsperate_ds_saves</string>
+    <string name="pref_key_ds_save_location" translatable="false">ds_save_location</string>
 </resources>
