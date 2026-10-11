@@ -12,6 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
   issues: write
 
@@ -103,3 +104,13 @@ jobs:
             --target sync \
             --title "Lemuroid Sync (upstream ${{ steps.merge.outputs.upstream_tag }})" \
             --notes "Lemuroid ${{ steps.merge.outputs.upstream_tag }} + sync branch $(git rev-parse --short=8 origin/sync): saves mirrored to a user-picked folder for Syncthing."
+
+  keepalive:
+    # GitHub disables scheduled workflows in repos with no activity for 60 days; re-enabling
+    # through the API resets that timer without dummy commits.
+    name: Keep schedule alive
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/build-sync.yml/enable"
