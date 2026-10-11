@@ -14,6 +14,8 @@ class DesmumeMigrationHandler(
         game: Game,
         coreID: CoreID,
         defaultData: ByteArray?,
+        // lemuroid-sync: the file defaultData came from (it moves under the DSperate layout)
+        saveRAMFile: File? = null,
     ): SaveDataResult {
         if (coreID != CoreID.DESMUME && coreID != CoreID.MELONDS) {
             return SaveDataResult(defaultData, null)
@@ -21,7 +23,7 @@ class DesmumeMigrationHandler(
 
         val savesDirectory = directoriesManager.getSavesDirectory()
         val baseFileName = game.fileName.substringBeforeLast(".", game.fileName)
-        val srmFile = File(savesDirectory, "$baseFileName.$SRM_EXTENSION")
+        val srmFile = saveRAMFile ?: File(savesDirectory, "$baseFileName.$SRM_EXTENSION")
         val dsvFile = File(savesDirectory, "$baseFileName.$DSV_EXTENSION")
         val srmInfo = SaveCandidate(srmFile, defaultData ?: srmFile.readBytesIfValid())
         val dsvInfo = SaveCandidate(dsvFile, dsvFile.readBytesIfValid())

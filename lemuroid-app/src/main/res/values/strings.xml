@@ -86,6 +86,8 @@
     <string name="settings_title_save_storage">Mirror saves to folder</string>
     <string name="settings_description_save_storage">Keep a copy of saves and states in a folder of your choice</string>
     <string name="settings_title_save_storage_folder">Saves folder</string>
+    <string name="settings_title_dsperate_ds_saves">Miyoo Flip compatible DS saves</string>
+    <string name="settings_description_dsperate_ds_saves">Save DS games as dsperate/&lt;game&gt;.sav, like DSperate on spruceOS, so a synced saves folder works on both devices. ROM file names must match.</string>
     <string name="settings_save_sync_refresh">Manual Sync</string>
     <string name="settings_save_sync_refresh_description">Perform a manual Sync now.\n%1$s</string>
     <string name="settings_save_sync_enable_auto">Auto-Sync</string>

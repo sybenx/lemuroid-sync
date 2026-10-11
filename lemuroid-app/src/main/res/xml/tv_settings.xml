@@ -88,6 +88,13 @@
             app:dependency="@string/pref_key_save_storage_enabled"
             app:iconSpaceReserved="false"/>
 
+        <SwitchPreference
+            android:key="@string/pref_key_dsperate_ds_saves"
+            android:title="@string/settings_title_dsperate_ds_saves"
+            android:summary="@string/settings_description_dsperate_ds_saves"
+            app:iconSpaceReserved="false"
+            android:defaultValue="false"/>
+
         <PreferenceScreen
             android:key="@string/pref_key_open_cores_selection"
             android:title="@string/settings_title_open_cores_selection"

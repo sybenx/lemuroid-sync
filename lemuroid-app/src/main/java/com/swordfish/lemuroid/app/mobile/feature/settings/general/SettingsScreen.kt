@@ -75,6 +75,8 @@ private fun MiscSettings(
 ) {
     val saveStorageEnabled =
         booleanPreferenceState(com.swordfish.lemuroid.lib.R.string.pref_key_save_storage_enabled, false)
+    val dsperateDsSaves =
+        booleanPreferenceState(com.swordfish.lemuroid.lib.R.string.pref_key_dsperate_ds_saves, false)
 
     LemuroidCardSettingsGroup(
         title = { Text(text = stringResource(id = R.string.settings_category_misc)) },
@@ -98,6 +100,11 @@ private fun MiscSettings(
             title = { Text(text = stringResource(id = R.string.settings_title_save_storage_folder)) },
             subtitle = { Text(text = saveStorageDirectory ?: stringResource(id = R.string.none)) },
             onClick = { onChangeSaveStorageFolder() },
+        )
+        LemuroidSettingsSwitch(
+            state = dsperateDsSaves,
+            title = { Text(text = stringResource(id = R.string.settings_title_dsperate_ds_saves)) },
+            subtitle = { Text(text = stringResource(id = R.string.settings_description_dsperate_ds_saves)) },
         )
         LemuroidSettingsMenuLink(
             title = { Text(text = stringResource(id = R.string.settings_title_open_cores_selection)) },

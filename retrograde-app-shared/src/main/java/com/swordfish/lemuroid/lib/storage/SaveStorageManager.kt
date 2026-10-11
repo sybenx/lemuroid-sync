@@ -42,8 +42,18 @@ class SaveStorageManager(
 
     private val preferenceKey = appContext.getString(R.string.pref_key_save_storage_folder)
 
+    private val dsperateLayoutKey = appContext.getString(R.string.pref_key_dsperate_ds_saves)
+
     fun isEnabled(): Boolean {
         return sharedPreferences.get().getBoolean(enabledPreferenceKey, false)
+    }
+
+    /**
+     * lemuroid-sync: store DS saves the way DSperate (spruceOS on the Miyoo Flip) does, as
+     * "dsperate/<rom name>.sav", so both devices share one file in a synced saves folder.
+     */
+    fun isDsperateLayoutEnabled(): Boolean {
+        return sharedPreferences.get().getBoolean(dsperateLayoutKey, false)
     }
 
     fun getCustomDirectoryUri(): Uri? {
