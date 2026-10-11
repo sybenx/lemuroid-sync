@@ -348,7 +348,11 @@ class SaveStorageManager(
      * mirrored. ".new" is filtered too as a defensive catch-all, though nothing in this codebase produces it.
      */
     private fun isTemporaryFile(name: String): Boolean {
-        return name.endsWith(".new") || name.endsWith(".bak")
+        return name.endsWith(".new") ||
+            name.endsWith(".bak") ||
+            // lemuroid-sync: skip hidden entries (e.g. Syncthing's .stfolder/.stversions) and Syncthing conflict copies
+            name.startsWith(".") ||
+            name.contains(".sync-conflict-")
     }
 
     companion object {
