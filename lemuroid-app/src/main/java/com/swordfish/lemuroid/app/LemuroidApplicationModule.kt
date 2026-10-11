@@ -36,6 +36,7 @@ import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.app.shared.main.GameLaunchTaskHandler
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.ControllerConfigsManager
+import com.swordfish.lemuroid.app.shared.settings.SaveStorageFolderPickerLauncher
 import com.swordfish.lemuroid.app.shared.settings.StorageFrameworkPickerLauncher
 import com.swordfish.lemuroid.app.tv.channel.ChannelHandler
 import com.swordfish.lemuroid.app.tv.settings.BiosPreferences
@@ -64,6 +65,7 @@ import com.swordfish.lemuroid.lib.saves.StatesManager
 import com.swordfish.lemuroid.lib.saves.StatesPreviewManager
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import com.swordfish.lemuroid.lib.storage.DirectoriesManager
+import com.swordfish.lemuroid.lib.storage.SaveStorageManager
 import com.swordfish.lemuroid.lib.storage.StorageProvider
 import com.swordfish.lemuroid.lib.storage.StorageProviderRegistry
 import com.swordfish.lemuroid.lib.storage.local.LocalStorageProvider
@@ -115,6 +117,10 @@ abstract class LemuroidApplicationModule {
     @PerActivity
     @ContributesAndroidInjector
     abstract fun storageFrameworkPickerLauncher(): StorageFrameworkPickerLauncher
+
+    @PerActivity
+    @ContributesAndroidInjector
+    abstract fun saveStorageFolderPickerLauncher(): SaveStorageFolderPickerLauncher
 
     @PerActivity
     @ContributesAndroidInjector(modules = [GamePadBindingActivity.Module::class])
@@ -233,12 +239,27 @@ abstract class LemuroidApplicationModule {
         @Provides
         @PerApp
         @JvmStatic
-        fun statesManager(directoriesManager: DirectoriesManager) = StatesManager(directoriesManager)
+        fun saveStorageManager(
+            context: Context,
+            directoriesManager: DirectoriesManager,
+            sharedPreferences: Lazy<SharedPreferences>,
+        ) = SaveStorageManager(context, directoriesManager, sharedPreferences)
 
         @Provides
         @PerApp
         @JvmStatic
-        fun savesManager(directoriesManager: DirectoriesManager) = SavesManager(directoriesManager)
+        fun statesManager(
+            directoriesManager: DirectoriesManager,
+            saveStorageManager: Lazy<SaveStorageManager>,
+        ) = StatesManager(directoriesManager, saveStorageManager)
+
+        @Provides
+        @PerApp
+        @JvmStatic
+        fun savesManager(
+            directoriesManager: DirectoriesManager,
+            saveStorageManager: Lazy<SaveStorageManager>,
+        ) = SavesManager(directoriesManager, saveStorageManager)
 
         @Provides
         @PerApp

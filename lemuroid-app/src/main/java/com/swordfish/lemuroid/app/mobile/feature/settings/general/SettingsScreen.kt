@@ -59,6 +59,8 @@ fun SettingsScreen(
             indexingInProgress = indexingInProgress,
             isSaveSyncSupported = state.isSaveSyncSupported,
             navController = navController,
+            saveStorageDirectory = state.saveStorageDirectory,
+            onChangeSaveStorageFolder = { viewModel.changeSaveStorageFolder() },
         )
     }
 }
@@ -68,7 +70,12 @@ private fun MiscSettings(
     indexingInProgress: Boolean,
     isSaveSyncSupported: Boolean,
     navController: NavController,
+    saveStorageDirectory: String?,
+    onChangeSaveStorageFolder: () -> Unit,
 ) {
+    val saveStorageEnabled =
+        booleanPreferenceState(com.swordfish.lemuroid.lib.R.string.pref_key_save_storage_enabled, false)
+
     LemuroidCardSettingsGroup(
         title = { Text(text = stringResource(id = R.string.settings_category_misc)) },
     ) {
@@ -81,6 +88,17 @@ private fun MiscSettings(
                 onClick = { navController.navigateToRoute(MainRoute.SETTINGS_SAVE_SYNC) },
             )
         }
+        LemuroidSettingsSwitch(
+            state = saveStorageEnabled,
+            title = { Text(text = stringResource(id = R.string.settings_title_save_storage)) },
+            subtitle = { Text(text = stringResource(id = R.string.settings_description_save_storage)) },
+        )
+        LemuroidSettingsMenuLink(
+            enabled = saveStorageEnabled.value,
+            title = { Text(text = stringResource(id = R.string.settings_title_save_storage_folder)) },
+            subtitle = { Text(text = saveStorageDirectory ?: stringResource(id = R.string.none)) },
+            onClick = { onChangeSaveStorageFolder() },
+        )
         LemuroidSettingsMenuLink(
             title = { Text(text = stringResource(id = R.string.settings_title_open_cores_selection)) },
             subtitle = {

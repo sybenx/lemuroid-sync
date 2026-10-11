@@ -71,6 +71,7 @@ import com.swordfish.lemuroid.lib.library.db.entity.Game
 import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import com.swordfish.lemuroid.lib.storage.DirectoriesManager
+import com.swordfish.lemuroid.lib.storage.SaveStorageManager
 import dagger.Provides
 import de.charlex.compose.material3.HtmlText
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -99,6 +100,9 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
 
     @Inject
     lateinit var settingsInteractor: SettingsInteractor
+
+    @Inject
+    lateinit var saveStorageManager: SaveStorageManager
 
     @Inject
     lateinit var inputDeviceManager: InputDeviceManager
@@ -277,6 +281,7 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                                                     applicationContext,
                                                 ),
                                             ),
+                                            saveStorageManager,
                                         ),
                                 ),
                             navController = navController,

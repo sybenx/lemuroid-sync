@@ -83,6 +83,9 @@
 
     <string name="settings_title_save_sync">Cloud saves</string>
     <string name="settings_description_save_sync">Back up and Sync your saves on the cloud</string>
+    <string name="settings_title_save_storage">Mirror saves to folder</string>
+    <string name="settings_description_save_storage">Keep a copy of saves and states in a folder of your choice</string>
+    <string name="settings_title_save_storage_folder">Saves folder</string>
     <string name="settings_save_sync_refresh">Manual Sync</string>
     <string name="settings_save_sync_refresh_description">Perform a manual Sync now.\n%1$s</string>
     <string name="settings_save_sync_enable_auto">Auto-Sync</string>
@@ -176,6 +179,7 @@
     <string name="game_shortcut_error">Something bad happened while loading your game. Please make sure this game still exists in your library.</string>
 
     <string name="dialog_saf_not_found">This device does not support the StorageAccessFramework file picker. Please manually copy uncompressed ROM files into %1$s and hit Rescan.</string>
+    <string name="dialog_saf_save_storage_not_found">This device does not support the StorageAccessFramework file picker, which is required to mirror saves to a folder.</string>
 
     <string name="system_grid_details">%1$s games</string>
 

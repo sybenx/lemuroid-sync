@@ -11,11 +11,15 @@ import com.swordfish.lemuroid.app.utils.android.displayErrorDialog
 import com.swordfish.lemuroid.lib.android.RetrogradeActivity
 import com.swordfish.lemuroid.lib.preferences.SharedPreferencesHelper
 import com.swordfish.lemuroid.lib.storage.DirectoriesManager
+import com.swordfish.lemuroid.lib.storage.SaveStorageManager
 import javax.inject.Inject
 
 class StorageFrameworkPickerLauncher : RetrogradeActivity() {
     @Inject
     lateinit var directoriesManager: DirectoriesManager
+
+    @Inject
+    lateinit var saveStorageManager: SaveStorageManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,6 +78,7 @@ class StorageFrameworkPickerLauncher : RetrogradeActivity() {
         contentResolver.persistedUriPermissions
             .filter { it.isReadPermission }
             .filter { it.uri != uri }
+            .filter { it.uri != saveStorageManager.getCustomDirectoryUri() }
             .forEach {
                 contentResolver.releasePersistableUriPermission(
                     it.uri,

@@ -8,12 +8,17 @@ import com.swordfish.lemuroid.common.kotlin.writeTextAtomic
 import com.swordfish.lemuroid.lib.library.CoreID
 import com.swordfish.lemuroid.lib.library.db.entity.Game
 import com.swordfish.lemuroid.lib.storage.DirectoriesManager
+import com.swordfish.lemuroid.lib.storage.SaveStorageManager
+import dagger.Lazy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class StatesManager(private val directoriesManager: DirectoriesManager) {
+class StatesManager(
+    private val directoriesManager: DirectoriesManager,
+    private val saveStorageManager: Lazy<SaveStorageManager>,
+) {
     suspend fun getSlotSave(
         game: Game,
         coreID: CoreID,
@@ -39,6 +44,8 @@ class StatesManager(private val directoriesManager: DirectoriesManager) {
         coreID: CoreID,
     ): SaveInfo =
         withContext(Dispatchers.IO) {
+            // Not pulled from the custom directory: this is only used for display/coherency checks against the
+            // local file, and pulling here would add SAF round-trips to a path that runs on every game load.
             val autoSaveFile = getStateFile(getAutoSaveFileName(game), coreID.coreName)
             val autoSaveHasData = autoSaveFile.length() > 0
             SaveInfo(autoSaveFile.exists() && autoSaveHasData, autoSaveFile.lastModified())
@@ -64,6 +71,8 @@ class StatesManager(private val directoriesManager: DirectoriesManager) {
         coreID: CoreID,
     ): List<SaveInfo> =
         withContext(Dispatchers.IO) {
+            // Not pulled from the custom directory, for the same reason as getAutoSaveInfo: this runs every time
+            // the states menu is opened, and the slot content itself is pulled on demand in getSlotSave.
             (0 until MAX_STATES)
                 .map { getStateFile(getSlotSaveFileName(game, it), coreID.coreName) }
                 .map { SaveInfo(it.exists(), it.lastModified()) }
@@ -77,6 +86,7 @@ class StatesManager(private val directoriesManager: DirectoriesManager) {
         return runCatchingWithRetry(FILE_ACCESS_RETRIES) {
             val saveFile = getStateFile(fileName, coreName)
             val metadataFile = getMetadataStateFile(fileName, coreName)
+            saveStorageManager.get().pull(saveFile, metadataFile)
             if (saveFile.exists()) {
                 val byteArray = saveFile.readBytesUncompressedAtomic()
                 val stateMetadata =
@@ -101,6 +111,10 @@ class StatesManager(private val directoriesManager: DirectoriesManager) {
         runCatchingWithRetry(FILE_ACCESS_RETRIES) {
             writeStateToDisk(fileName, coreName, saveState.state)
             writeMetadataToDisk(fileName, coreName, saveState.metadata)
+            saveStorageManager.get().push(
+                getStateFile(fileName, coreName),
+                getMetadataStateFile(fileName, coreName),
+            )
         }
     }
 
