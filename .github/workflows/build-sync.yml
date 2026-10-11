@@ -1,53 +1,105 @@
 name: Build Lemuroid Sync
 
+# Builds the "sync" branch merged with the latest upstream Lemuroid release, signs it with the
+# fork's permanent key and publishes it as a GitHub release (watch it with Obtainium on the phone).
+# The merge happens only in the runner: nothing is pushed back, so upstream edits to its own
+# workflow files never need the "workflows" token permission.
 on:
   push:
     branches: [sync]
-    tags: ["sync-*"]
+  schedule:
+    - cron: "17 6 * * *" # daily: pick up new upstream releases
   workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: build-sync
+  cancel-in-progress: false
 
 jobs:
   build:
-    name: Build signed APK
+    name: Merge upstream release, build signed APK
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          ref: sync
+          fetch-depth: 0
+
+      - name: Merge latest upstream release
+        id: merge
+        run: |
+          set -euo pipefail
+          git config user.name "lemuroid-sync bot"
+          git config user.email "lemuroid-sync@users.noreply.github.com"
+          upstream_tag=$(gh api repos/Swordfish90/Lemuroid/releases/latest --jq .tag_name)
+          git fetch --no-tags https://github.com/Swordfish90/Lemuroid.git "refs/tags/${upstream_tag}:refs/tags/upstream-${upstream_tag}"
+          if ! git merge --no-edit "upstream-${upstream_tag}"; then
+            # Upstream workflow files we deleted on purpose: keep them deleted.
+            git diff --name-only --diff-filter=U | grep '^\.github/workflows/' | xargs -r git rm -q
+            if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+              files=$(git diff --name-only --diff-filter=U | sed 's/^/- /')
+              git merge --abort
+              title="Merge conflict with upstream ${upstream_tag}"
+              if ! gh issue list --state open --search "\"${title}\" in:title" --json number --jq '.[].number' | grep -q .; then
+                gh issue create --title "${title}" --body "$(printf 'Automatic merge of upstream Lemuroid %s into sync failed. Conflicting files:\n\n%s\n\nMerge it by hand and push to sync.' "${upstream_tag}" "${files}")"
+              fi
+              exit 1
+            fi
+            git commit -q --no-edit
+          fi
+          release_tag="sync-${upstream_tag}-$(git rev-parse --short=8 origin/sync)"
+          echo "upstream_tag=${upstream_tag}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          if gh release view "${release_tag}" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "${release_tag} already published, nothing to do"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out submodules
+        if: steps.merge.outputs.skip == 'false'
+        run: git submodule update --init --recursive
 
       - name: Set up JDK 17
+        if: steps.merge.outputs.skip == 'false'
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
           cache: gradle
 
-      - name: Restore signing key
-        run: echo "${{ secrets.SYNC_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/sync.jks"
-
       - name: Build freeDynamic release
+        if: steps.merge.outputs.skip == 'false'
         env:
           SYNC_KEYSTORE_PATH: ${{ runner.temp }}/sync.jks
           SYNC_KEY_ALIAS: lemuroid-sync
           SYNC_KEYSTORE_PASSWORD: ${{ secrets.SYNC_KEYSTORE_PASSWORD }}
           SYNC_KEY_PASSWORD: ${{ secrets.SYNC_KEYSTORE_PASSWORD }}
         run: |
+          echo "${{ secrets.SYNC_KEYSTORE_B64 }}" | base64 -d > "$SYNC_KEYSTORE_PATH"
           chmod +x gradlew
           ./gradlew assembleFreeDynamicRelease
           cp lemuroid-app/build/outputs/apk/freeDynamic/release/lemuroid-app-free-dynamic-release.apk lemuroid-sync.apk
 
       - name: Upload APK
+        if: steps.merge.outputs.skip == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: lemuroid-sync-apk
           path: lemuroid-sync.apk
 
-      - name: Publish release (tags only)
-        if: startsWith(github.ref, 'refs/tags/sync-')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${GITHUB_REF_NAME}" lemuroid-sync.apk --title "${GITHUB_REF_NAME}" --notes "Lemuroid with a mirrored saves folder for Syncthing."
-
-    permissions:
-      contents: write
+      - name: Publish release
+        if: steps.merge.outputs.skip == 'false'
+        run: |
+          gh release create "${{ steps.merge.outputs.release_tag }}" lemuroid-sync.apk \
+            --target sync \
+            --title "Lemuroid Sync (upstream ${{ steps.merge.outputs.upstream_tag }})" \
+            --notes "Lemuroid ${{ steps.merge.outputs.upstream_tag }} + sync branch $(git rev-parse --short=8 origin/sync): saves mirrored to a user-picked folder for Syncthing."
