@@ -49,6 +49,11 @@ class SavesManager(
                     }
 
                     val saveFile = getSaveRAMFile(game)
+                    // An unchanged save keeps its timestamp: a synced device then only sees real progress
+                    // as newer (and e.g. skips its own auto-resume state only when it should).
+                    if (saveFile.isFile && saveFile.length() == data.size.toLong() && saveFile.readBytes().contentEquals(data)) {
+                        return@runCatchingWithRetry
+                    }
                     saveFile.parentFile?.mkdirs()
                     saveFile.writeBytesAtomic(data)
                     saveStorageManager.get().push(saveFile)
