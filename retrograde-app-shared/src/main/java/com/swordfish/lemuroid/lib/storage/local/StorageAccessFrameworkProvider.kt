@@ -102,6 +102,10 @@ class StorageAccessFrameworkProvider(private val context: Context) : StorageProv
                 val documentSize = it.getLong(2)
                 val mimeType = it.getString(3)
 
+                // Skip hidden entries such as Syncthing's .stversions/.stfolder,
+                // otherwise archived copies show up as duplicate games.
+                if (documentName?.startsWith(".") == true) continue
+
                 if (mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
                     resultDirectories.add(documentId)
                 } else {
