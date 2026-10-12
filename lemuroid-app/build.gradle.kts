@@ -12,7 +12,7 @@ android {
     defaultConfig {
         versionCode = 252
         versionName = "1.17.0" // Always remember to update Cores Tag!
-        applicationId = "com.swordfish.lemuroid"
+        applicationId = "com.swordfish.lemuroid.sync"
     }
     flavorDimensions += listOf("opensource", "cores")
 
@@ -84,10 +84,11 @@ android {
         }
 
         maybeCreate("release").apply {
-            storeFile = file("$rootDir/release.jks")
-            keyAlias = "lemuroid"
-            storePassword = "lemuroid"
-            keyPassword = "lemuroid"
+            // lemuroid-sync: keystore and passwords come from CI secrets (see .github/workflows/build-sync.yml)
+            storeFile = file(System.getenv("SYNC_KEYSTORE_PATH") ?: "$rootDir/release.jks")
+            keyAlias = System.getenv("SYNC_KEY_ALIAS") ?: "lemuroid"
+            storePassword = System.getenv("SYNC_KEYSTORE_PASSWORD") ?: "lemuroid"
+            keyPassword = System.getenv("SYNC_KEY_PASSWORD") ?: "lemuroid"
         }
     }
 
@@ -96,7 +97,7 @@ android {
             isMinifyEnabled = true
             signingConfig = signingConfigs["release"]
             proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
-            resValue("string", "lemuroid_name", "Lemuroid")
+            resValue("string", "lemuroid_name", "Lemuroid Sync")
         }
         getByName("debug") {
             applicationIdSuffix = ".debug"
