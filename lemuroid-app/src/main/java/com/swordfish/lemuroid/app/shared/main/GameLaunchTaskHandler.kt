@@ -11,11 +11,13 @@ import com.swordfish.lemuroid.app.shared.storage.cache.CacheCleanerWork
 import com.swordfish.lemuroid.ext.feature.review.ReviewManager
 import com.swordfish.lemuroid.lib.library.db.RetrogradeDatabase
 import com.swordfish.lemuroid.lib.library.db.entity.Game
+import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import kotlinx.coroutines.delay
 
 class GameLaunchTaskHandler(
     private val reviewManager: ReviewManager,
     private val retrogradeDb: RetrogradeDatabase,
+    private val saveSyncManager: SaveSyncManager,
 ) {
     fun handleGameStart(context: Context) {
         cancelBackgroundWork(context)
@@ -52,8 +54,10 @@ class GameLaunchTaskHandler(
     }
 
     private fun rescheduleBackgroundWork(context: Context) {
-        // Let's slightly delay the sync. Maybe the user wants to play another game.
-        SaveSyncWork.enqueueAutoWork(context, 5)
+        // Let's slightly delay a remote sync. Maybe the user wants to play another game.
+        // Local syncs are cheap, and other devices should get the latest saves as soon as possible.
+        val requiresNetwork = saveSyncManager.requiresNetwork()
+        SaveSyncWork.enqueueAutoWork(context, if (requiresNetwork) 5 else 0, requiresNetwork)
         CacheCleanerWork.enqueueCleanCacheLRU(context)
     }
 

@@ -20,6 +20,9 @@ abstract class SaveSyncManager {
 
     abstract suspend fun sync(cores: Set<CoreID>)
 
+    /** Providers that do not talk to a remote service can sync without a network and right after a game. */
+    open fun requiresNetwork(): Boolean = true
+
     abstract fun computeSavesSpace(): String
 
     abstract fun computeStatesSpace(core: CoreID): String
