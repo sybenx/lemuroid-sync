@@ -23,6 +23,9 @@ abstract class SaveSyncManager {
     /** Providers that do not talk to a remote service can sync without a network and right after a game. */
     open fun requiresNetwork(): Boolean = true
 
+    /** lemuroid-sync: true when the synced saves are missing, e.g. before a sync app delivered them. */
+    open suspend fun isRemoteSavesEmpty(): Boolean = false
+
     abstract fun computeSavesSpace(): String
 
     abstract fun computeStatesSpace(core: CoreID): String

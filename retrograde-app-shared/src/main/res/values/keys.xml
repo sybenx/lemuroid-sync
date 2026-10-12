@@ -3,6 +3,8 @@
     <string name="pref_file_harmony_options" translatable="false">harmony_options</string>
 
     <string name="pref_key_last_save_sync" translatable="false">last_save_sync</string>
+    <string name="pref_key_ds_save_location" translatable="false">ds_save_location</string>
+    <string name="pref_key_dsperate_ds_saves" translatable="false">dsperate_ds_saves</string>
     <string name="pref_key_save_sync_external_directory" translatable="false">save_sync_external_directory</string>
     <string name="pref_key_extenral_folder" translatable="false">external_folder</string>
     <string name="pref_key_legacy_external_folder" translatable="false">legacy_external_folder</string>

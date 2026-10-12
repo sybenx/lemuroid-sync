@@ -14,12 +14,15 @@ import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.shared.savesync.SaveSyncWork
 import com.swordfish.lemuroid.app.utils.android.ComposableLifecycle
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidCardSettingsGroup
+import com.swordfish.lemuroid.app.utils.android.settings.LemuroidSettingsList
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidSettingsListMultiSelect
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidSettingsMenuLink
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidSettingsPage
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidSettingsSwitch
 import com.swordfish.lemuroid.app.utils.android.settings.booleanPreferenceState
+import com.swordfish.lemuroid.app.utils.android.settings.indexPreferenceState
 import com.swordfish.lemuroid.app.utils.android.settings.stringsSetPreferenceState
+import com.swordfish.lemuroid.app.utils.android.stringListResource
 
 @Composable
 fun SaveSyncSettingsScreen(
@@ -79,6 +82,18 @@ fun SaveSyncSettingsScreen(
                     )
                 },
                 enabled = saveSyncState.isConfigured && !isSyncInProgress,
+            )
+            // lemuroid-sync: DS save file layout, e.g. to share saves with the Miyoo Flip (DSperate).
+            LemuroidSettingsList(
+                state =
+                    indexPreferenceState(
+                        com.swordfish.lemuroid.lib.R.string.pref_key_ds_save_location,
+                        "default",
+                        stringListResource(R.array.pref_key_ds_save_location_values).toList(),
+                    ),
+                title = { Text(text = stringResource(id = R.string.settings_title_ds_save_location)) },
+                items = stringListResource(R.array.pref_key_ds_save_location_display_names),
+                enabled = !isSyncInProgress,
             )
             LemuroidSettingsListMultiSelect(
                 state =

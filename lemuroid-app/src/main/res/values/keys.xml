@@ -64,6 +64,18 @@
         <item>bottom</item>
     </string-array>
 
+    <string-array translatable="false" name="pref_key_ds_save_location_values">
+        <item>default</item>
+        <item>folder</item>
+        <item>dsperate</item>
+    </string-array>
+
+    <string-array translatable="false" name="pref_key_ds_save_location_display_names">
+        <item>@string/ds_save_location_names_default</item>
+        <item>@string/ds_save_location_names_folder</item>
+        <item>@string/ds_save_location_names_dsperate</item>
+    </string-array>
+
     <string-array translatable="false" name="pref_key_viewport_alignment_display_names">
         <item>@string/viewport_alignment_names_top</item>
         <item>@string/viewport_alignment_names_center</item>

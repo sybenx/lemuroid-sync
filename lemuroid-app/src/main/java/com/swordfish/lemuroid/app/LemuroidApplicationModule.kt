@@ -238,7 +238,11 @@ abstract class LemuroidApplicationModule {
         @Provides
         @PerApp
         @JvmStatic
-        fun savesManager(directoriesManager: DirectoriesManager) = SavesManager(directoriesManager)
+        fun savesManager(
+            context: Context,
+            directoriesManager: DirectoriesManager,
+            sharedPreferences: Lazy<SharedPreferences>,
+        ) = SavesManager(context, directoriesManager, sharedPreferences)
 
         @Provides
         @PerApp
@@ -386,7 +390,8 @@ abstract class LemuroidApplicationModule {
         fun gameLauncher(
             coresSelection: CoresSelection,
             gameLaunchTaskHandler: GameLaunchTaskHandler,
-        ) = GameLauncher(coresSelection, gameLaunchTaskHandler)
+            saveSyncManager: SaveSyncManager,
+        ) = GameLauncher(coresSelection, gameLaunchTaskHandler, saveSyncManager)
 
         @Provides
         @PerApp

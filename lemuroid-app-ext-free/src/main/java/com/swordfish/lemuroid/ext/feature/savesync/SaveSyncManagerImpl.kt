@@ -78,6 +78,14 @@ class SaveSyncManagerImpl(
             }
         }
 
+    override suspend fun isRemoteSavesEmpty(): Boolean =
+        withContext(Dispatchers.IO) {
+            val treeUri = getDirectoryUri() ?: return@withContext false
+            runCatching { RemoteTree(treeUri).isEmpty(listOf(SAVES_DIRECTORY)) }
+                .onFailure { Timber.e(it, "Unable to inspect the save sync directory") }
+                .getOrDefault(false)
+        }
+
     private fun performSaveSyncForCores(cores: Set<CoreID>) {
         val tree = RemoteTree(getDirectoryUri() ?: return)
 
@@ -160,6 +168,18 @@ class SaveSyncManagerImpl(
             localDir.mkdirs()
             pullDirectory(remoteDir, localDir)
             pushDirectory(localDir, remoteDir)
+        }
+
+        /** lemuroid-sync: whether the remote directory at [segments] holds no files, ignoring sync metadata. */
+        fun isEmpty(segments: List<String>): Boolean {
+            val remoteDir = resolveDirectory(segments) ?: return false
+            return !containsAnyFile(remoteDir)
+        }
+
+        private fun containsAnyFile(remoteDir: Uri): Boolean {
+            return listChildren(remoteDir).any {
+                !isIgnoredFile(it.name) && (!it.isDirectory || containsAnyFile(it.uri))
+            }
         }
 
         private fun listChildren(parent: Uri): List<RemoteEntry> {
