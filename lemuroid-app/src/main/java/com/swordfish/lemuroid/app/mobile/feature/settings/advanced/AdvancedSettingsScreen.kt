@@ -76,6 +76,18 @@ private fun InputSettings() {
             enabled = true,
             title = { Text(text = stringResource(R.string.settings_title_tilt_sensitivity)) },
         )
+        LemuroidSettingsSlider(
+            state =
+                intPreferenceState(
+                    key = stringResource(id = R.string.pref_key_flippad_screen_space),
+                    default = 7,
+                ),
+            steps = 9,
+            valueRange = 0f..10f,
+            enabled = true,
+            title = { Text(text = stringResource(R.string.settings_title_flippad_screen_space)) },
+            subtitle = { Text(text = stringResource(R.string.settings_description_flippad_screen_space)) },
+        )
     }
 }
 

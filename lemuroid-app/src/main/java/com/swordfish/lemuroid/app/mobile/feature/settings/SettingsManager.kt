@@ -38,6 +38,8 @@ class SettingsManager(private val context: Context, sharedPreferences: Lazy<Shar
 
     suspend fun tiltSensitivity() = floatPreference(R.string.pref_key_tilt_sensitivity_index, 10, 6)
 
+    suspend fun flipPadScreenSpace() = floatPreference(R.string.pref_key_flippad_screen_space, 20, 7)
+
     suspend fun autoSaveSync() = booleanPreference(R.string.pref_key_save_sync_auto, false)
 
     suspend fun syncSaves() = booleanPreference(R.string.pref_key_save_sync_enable, true)

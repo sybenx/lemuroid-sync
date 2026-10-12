@@ -81,6 +81,8 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
 
         val controllerConfigState = viewModel.getTouchControllerConfig().collectAsState(null)
         val touchControlsVisibleState = viewModel.isTouchControllerVisible().collectAsState(false)
+        val flipPadScreenSpaceState = viewModel.getFlipPadScreenSpace().collectAsState(0f)
+        val gameViewBottomPadding = if (isLandscape) 0.dp else maxHeight * flipPadScreenSpaceState.value
         val touchControllerSettingsState =
             viewModel
                 .getTouchControlsSettings(LocalDensity.current, WindowInsets.displayCutout)
@@ -161,6 +163,7 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
                         Modifier
                             .layoutId(GameScreenLayout.CONSTRAINTS_GAME_VIEW)
                             .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top))
+                            .padding(bottom = gameViewBottomPadding)
                             .onGloballyPositioned { viewportPosition.value = it.boundsInRoot() },
                 )
 

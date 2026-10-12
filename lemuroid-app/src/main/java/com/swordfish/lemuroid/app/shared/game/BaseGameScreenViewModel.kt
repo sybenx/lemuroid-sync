@@ -225,6 +225,10 @@ class BaseGameScreenViewModel(
         return touchControls.isTouchControllerVisible()
     }
 
+    fun getFlipPadScreenSpace(): Flow<Float> {
+        return touchControls.getFlipPadScreenSpace()
+    }
+
     fun getTouchControllerConfig(): Flow<ControllerConfig> {
         return touchControls.getTouchControllerConfig()
     }
