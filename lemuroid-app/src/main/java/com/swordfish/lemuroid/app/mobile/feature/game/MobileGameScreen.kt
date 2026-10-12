@@ -81,6 +81,10 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
 
         val controllerConfigState = viewModel.getTouchControllerConfig().collectAsState(null)
         val touchControlsVisibleState = viewModel.isTouchControllerVisible().collectAsState(false)
+        // The 8BitDo FlipPad folds over the lower part of the screen in portrait: keep the
+        // game above it, with room to tap the bottom of touch screens.
+        val flipPadConnectedState = viewModel.isFlipPadConnected().collectAsState(false)
+        val gameViewBottomPadding = if (flipPadConnectedState.value && !isLandscape) 350.dp else 0.dp
         val touchControllerSettingsState =
             viewModel
                 .getTouchControlsSettings(LocalDensity.current, WindowInsets.displayCutout)
@@ -161,6 +165,7 @@ fun MobileGameScreen(viewModel: BaseGameScreenViewModel) {
                         Modifier
                             .layoutId(GameScreenLayout.CONSTRAINTS_GAME_VIEW)
                             .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Top))
+                            .padding(bottom = gameViewBottomPadding)
                             .onGloballyPositioned { viewportPosition.value = it.boundsInRoot() },
                 )
 
