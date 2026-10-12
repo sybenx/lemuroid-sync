@@ -42,6 +42,12 @@ class SavesManager(private val directoriesManager: DirectoriesManager) {
                     }
 
                     val saveFile = getSaveFile(getSaveRAMFileName(game))
+
+                    // Keep the timestamp of an unchanged save, so that sync only sees real progress as newer.
+                    if (saveFile.length() == data.size.toLong() && saveFile.readBytes().contentEquals(data)) {
+                        return@runCatchingWithRetry
+                    }
+
                     saveFile.writeBytesAtomic(data)
                 }
             result.getOrNull()

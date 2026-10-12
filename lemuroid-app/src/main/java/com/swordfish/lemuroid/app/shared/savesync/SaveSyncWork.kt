@@ -109,6 +109,7 @@ class SaveSyncWork(context: Context, workerParams: WorkerParameters) :
         fun enqueueAutoWork(
             applicationContext: Context,
             delayMinutes: Long = 0,
+            requiresNetwork: Boolean = true,
         ) {
             val inputData: Data = workDataOf(IS_AUTO to true)
 
@@ -118,7 +119,9 @@ class SaveSyncWork(context: Context, workerParams: WorkerParameters) :
                 PeriodicWorkRequestBuilder<SaveSyncWork>(3, TimeUnit.HOURS)
                     .setConstraints(
                         Constraints.Builder()
-                            .setRequiredNetworkType(NetworkType.UNMETERED)
+                            .setRequiredNetworkType(
+                                if (requiresNetwork) NetworkType.UNMETERED else NetworkType.NOT_REQUIRED,
+                            )
                             .setRequiresBatteryNotLow(true)
                             .build(),
                     )
