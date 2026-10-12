@@ -110,15 +110,6 @@ class GameViewModelTouchControls(
             .map { it.isEmpty() }
     }
 
-    // The 8BitDo FlipPad folds over the lower part of the screen, so reserve that
-    // fraction of the screen height while it is connected.
-    fun getFlipPadScreenSpace(): Flow<Float> {
-        return inputs.getEnabledInputDevices()
-            .map { devices -> devices.any { it.name.contains("FlipPad", ignoreCase = true) } }
-            .distinctUntilChanged()
-            .map { attached -> if (attached) settingsManager.flipPadScreenSpace() else 0f }
-    }
-
     fun getTouchControllerConfig(): Flow<ControllerConfig> {
         return inputs.getControllerConfigState()
             .map { it[0] }

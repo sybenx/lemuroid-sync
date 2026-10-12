@@ -41,6 +41,8 @@ import gg.padkit.inputstate.InputState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -225,8 +227,10 @@ class BaseGameScreenViewModel(
         return touchControls.isTouchControllerVisible()
     }
 
-    fun getFlipPadScreenSpace(): Flow<Float> {
-        return touchControls.getFlipPadScreenSpace()
+    fun isFlipPadConnected(): Flow<Boolean> {
+        return inputs.getEnabledInputDevices()
+            .map { devices -> devices.any { it.name.contains("FlipPad", ignoreCase = true) } }
+            .distinctUntilChanged()
     }
 
     fun getTouchControllerConfig(): Flow<ControllerConfig> {
