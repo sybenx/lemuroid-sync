@@ -71,9 +71,15 @@ class StorageFrameworkPickerLauncher : RetrogradeActivity() {
     }
 
     private fun updatePersistableUris(uri: Uri) {
+        // The save sync directory holds its own permission, which must survive a change of roms directory.
+        val saveSyncDirectory =
+            SharedPreferencesHelper.getSharedPreferences(this)
+                .getString(getString(com.swordfish.lemuroid.lib.R.string.pref_key_save_sync_external_directory), null)
+
         contentResolver.persistedUriPermissions
             .filter { it.isReadPermission }
             .filter { it.uri != uri }
+            .filter { it.uri.toString() != saveSyncDirectory }
             .forEach {
                 contentResolver.releasePersistableUriPermission(
                     it.uri,
