@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Save sync in the free flavor uses a local directory instead of a cloud service. -->
+<resources>
+    <string name="settings_title_save_sync">Save sync</string>
+    <string name="settings_description_save_sync">Back up and Sync your saves to a directory</string>
+    <string name="settings_save_sync_enable_auto_description">Automatically perform a Sync before and after a game session</string>
+    <string name="save_sync_notification_title">Save Sync in progress</string>
+</resources>
