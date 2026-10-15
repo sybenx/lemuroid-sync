@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -125,6 +126,23 @@ fun GameMenuHomeScreen(
                 onItemSelected = { index, _ ->
                     onResult { putExtra(GameMenuContract.RESULT_CHANGE_DISK, index) }
                 },
+            )
+        }
+
+        gameMenuRequest.linkConnection?.let { connection ->
+            LemuroidSettingsMenuLink(
+                title = { Text(text = stringResource(id = R.string.game_menu_link)) },
+                subtitle =
+                    connection.peer?.let { peer ->
+                        { Text(text = stringResource(id = R.string.game_link_linked, peer.displayName)) }
+                    },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Cable,
+                        contentDescription = stringResource(id = R.string.game_menu_link),
+                    )
+                },
+                onClick = { navController.navigateToRoute(GameMenuRoute.LINK) },
             )
         }
 

@@ -253,4 +253,27 @@
     <string name="tilt_configuration_buttons_l1_r1">L1 - R1</string>
     <string name="tilt_configuration_buttons_l2_r2">L2 - R2</string>
 
+
+    <!-- Game Link (link cable) -->
+    <string name="game_menu_link">Link Cable</string>
+    <string name="game_link_you_are">You\'re</string>
+    <string name="game_link_shuffle">Shuffle name</string>
+    <string name="game_link_change">Change name</string>
+    <string name="game_link_color">Color</string>
+    <string name="game_link_creature">Creature</string>
+    <string name="game_link_nearby">Nearby</string>
+    <string name="game_link_looking">Looking for friends on this Wi-Fi. Ask them to open Link Cable too.</string>
+    <string name="game_link_waiting">Waiting for them to answer…</string>
+    <string name="game_link_declined">Said not now</string>
+    <string name="game_link_busy">Busy right now, try again in a moment</string>
+    <string name="game_link_failed">Couldn\'t reach them</string>
+    <string name="game_link_invite_title">%1$s wants to link up</string>
+    <string name="game_link_invite_game">Playing %1$s</string>
+    <string name="game_link_invite_accept">Link</string>
+    <string name="game_link_invite_decline">Not now</string>
+    <string name="game_link_linked">Linked with %1$s</string>
+    <string name="game_link_linked_hint">Use the game\'s link features as if a cable were plugged in. Unplug to link with someone else.</string>
+    <string name="game_link_unplug">Unplug</string>
+    <string name="game_link_toast_linked">Link cable connected to %1$s</string>
+    <string name="game_link_toast_unplugged">Link cable unplugged</string>
 </resources>
