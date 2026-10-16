@@ -86,7 +86,7 @@ class SaveSyncManagerImpl(
     override suspend fun isRemoteSavesEmpty(): Boolean =
         withContext(Dispatchers.IO) {
             val treeUri = getDirectoryUri() ?: return@withContext false
-            runCatching { RemoteTree(treeUri).isEmpty(listOf(SAVES_DIRECTORY)) }
+            runCatching { RemoteTree(treeUri, Properties()).isEmpty(listOf(SAVES_DIRECTORY)) }
                 .onFailure { Timber.e(it, "Unable to inspect the save sync directory") }
                 .getOrDefault(false)
         }
