@@ -17,11 +17,16 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.Properties
 
 /**
  * Syncs saves and states with a directory chosen by the user through the Storage Access Framework, so that
  * they can be picked up by external backup and sync applications. Cores read and write the private
  * directories, so files are copied in either direction, and only when the other side is newer.
+ *
+ * Files present on both sides after a sync are remembered. When one of them later disappears from the
+ * directory while the local copy is unchanged, it was deleted or renamed by another device, so the local
+ * copy is moved to a trash folder instead of being copied back.
  */
 class SaveSyncManagerImpl(
     private val appContext: Context,
@@ -79,7 +84,7 @@ class SaveSyncManagerImpl(
         }
 
     private fun performSaveSyncForCores(cores: Set<CoreID>) {
-        val tree = RemoteTree(getDirectoryUri() ?: return)
+        val tree = RemoteTree(getDirectoryUri() ?: return, loadSyncedFiles())
 
         tree.syncDirectory(directoriesManager.getSavesDirectory(), listOf(SAVES_DIRECTORY))
 
@@ -94,7 +99,38 @@ class SaveSyncManagerImpl(
             )
         }
 
+        tree.syncedFiles.storeTo(syncedFilesFile())
         lastSyncTimestamp = System.currentTimeMillis()
+    }
+
+    private fun syncedFilesFile() = File(appContext.filesDir, SYNCED_FILES_NAME)
+
+    /** Remote path (e.g. "saves/dsperate/Game.sav") to the local modification time after the last sync. */
+    private fun loadSyncedFiles(): Properties {
+        val properties = Properties()
+        runCatching { syncedFilesFile().takeIf { it.isFile }?.inputStream()?.use { properties.load(it) } }
+            .onFailure { Timber.e(it, "Unable to read the synced files list.") }
+        return properties
+    }
+
+    private fun Properties.storeTo(file: File) {
+        val temp = File(file.parentFile, file.name + ".new")
+        temp.outputStream().use { store(it, null) }
+        temp.renameTo(file)
+    }
+
+    private fun moveToTrash(
+        file: File,
+        path: String,
+    ) {
+        val trash = File(appContext.getExternalFilesDir(null), TRASH_DIRECTORY)
+        val target = File(trash, "${System.currentTimeMillis()}/$path")
+        target.parentFile?.mkdirs()
+        if (file.renameTo(target)) {
+            Timber.i("Moved $path to the trash, since it was deleted from the sync directory.")
+        } else {
+            Timber.w("Unable to move $path to the trash.")
+        }
     }
 
     override fun computeSavesSpace() = getSizeHumanReadable(directoriesManager.getSavesDirectory())
@@ -144,7 +180,7 @@ class SaveSyncManagerImpl(
      * Talks to DocumentsContract directly, since DocumentFile issues a separate query for every attribute.
      * Directory listings are cached for the lifetime of a single sync.
      */
-    private inner class RemoteTree(private val treeUri: Uri) {
+    private inner class RemoteTree(private val treeUri: Uri, val syncedFiles: Properties) {
         private val contentResolver = appContext.contentResolver
         private val childrenCache = mutableMapOf<Uri, List<RemoteEntry>>()
 
@@ -157,9 +193,74 @@ class SaveSyncManagerImpl(
             segments: List<String>,
         ) {
             val remoteDir = resolveDirectory(segments) ?: return
+            val prefix = segments.joinToString("/", postfix = "/")
             localDir.mkdirs()
+            trashRemotelyDeletedFiles(remoteDir, localDir, prefix)
             pullDirectory(remoteDir, localDir)
             pushDirectory(localDir, remoteDir)
+            rememberSyncedFiles(remoteDir, localDir, prefix)
+        }
+
+        private fun trashRemotelyDeletedFiles(
+            remoteDir: Uri,
+            localDir: File,
+            prefix: String,
+        ) {
+            val previous = syncedFiles.stringPropertyNames().filter { it.startsWith(prefix) }
+            if (previous.isEmpty()) return
+
+            // An empty listing more likely means the provider failed than that every file was deleted.
+            val remoteFiles = listRemoteFiles(remoteDir)
+            if (remoteFiles.isEmpty()) return
+
+            val deleted =
+                previous.filter { path ->
+                    val relativePath = path.removePrefix(prefix)
+                    val localFile = File(localDir, relativePath)
+                    relativePath !in remoteFiles &&
+                        localFile.isFile &&
+                        localFile.lastModified().toString() == syncedFiles.getProperty(path)
+                }
+            if (deleted.size > MAX_DELETIONS_PER_SYNC) {
+                Timber.w("${deleted.size} files are missing from $prefix, skipping deletions.")
+                return
+            }
+            deleted.forEach { path ->
+                moveToTrash(File(localDir, path.removePrefix(prefix)), path)
+                syncedFiles.remove(path)
+            }
+        }
+
+        private fun rememberSyncedFiles(
+            remoteDir: Uri,
+            localDir: File,
+            prefix: String,
+        ) {
+            childrenCache.clear()
+            val remoteFiles = listRemoteFiles(remoteDir)
+            syncedFiles.stringPropertyNames().filter { it.startsWith(prefix) }.forEach { syncedFiles.remove(it) }
+            localDir.walkTopDown()
+                .filter { it.isFile }
+                .forEach { localFile ->
+                    val relativePath = localFile.relativeTo(localDir).invariantSeparatorsPath
+                    if (relativePath in remoteFiles) {
+                        syncedFiles.setProperty(prefix + relativePath, localFile.lastModified().toString())
+                    }
+                }
+        }
+
+        /** Relative paths of the files below [remoteDir], skipping the entries the sync ignores. */
+        private fun listRemoteFiles(
+            remoteDir: Uri,
+            parentPath: String = "",
+        ): Set<String> {
+            return listChildren(remoteDir)
+                .filter { isSafeFileName(it.name) && !isIgnoredFile(it.name) }
+                .flatMap { child ->
+                    val path = parentPath + child.name
+                    if (child.isDirectory) listRemoteFiles(child.uri, "$path/") else listOf(path)
+                }
+                .toSet()
         }
 
         private fun listChildren(parent: Uri): List<RemoteEntry> {
@@ -335,6 +436,12 @@ class SaveSyncManagerImpl(
         private const val MIME_TYPE_BINARY = "application/octet-stream"
 
         private const val BLANK_CHECK_MAX_BYTES = 2L * 1024 * 1024
+
+        private const val SYNCED_FILES_NAME = "external-directory-synced-files.properties"
+        private const val TRASH_DIRECTORY = "save-sync-trash"
+
+        // A larger batch is more likely a broken directory than files deleted on purpose.
+        private const val MAX_DELETIONS_PER_SYNC = 10
 
         fun directoryPreferenceKey(context: Context): String {
             return context.getString(com.swordfish.lemuroid.lib.R.string.pref_key_save_sync_external_directory)
