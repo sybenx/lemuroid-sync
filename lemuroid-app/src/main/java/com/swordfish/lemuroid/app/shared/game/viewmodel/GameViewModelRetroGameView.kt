@@ -73,6 +73,7 @@ class GameViewModelRetroGameView(
     private val gameState: MutableStateFlow<GameState> = MutableStateFlow(GameState.Uninitialized)
 
     private val retroGameViewFlow = MutableStateFlow<GLRetroView?>(null)
+    private var lastAppliedCoreVariables: Pair<GLRetroView, List<CoreVariable>>? = null
     var retroGameView: GLRetroView? by MutableStateProperty(retroGameViewFlow)
 
     fun getGameState(): Flow<GameState> {
@@ -327,6 +328,13 @@ class GameViewModelRetroGameView(
     }
 
     private fun updateCoreVariables(options: List<CoreVariable>) {
+        val retroGameView = retroGameView ?: return
+
+        // This runs on every resume. Some cores react to any variable update (Gambatte restarts its
+        // Game Link connection), so only send the variables when they actually changed.
+        if (lastAppliedCoreVariables == (retroGameView to options)) return
+        lastAppliedCoreVariables = retroGameView to options
+
         val updatedVariables =
             options.map { Variable(it.key, it.value) }
                 .toTypedArray()
@@ -335,7 +343,7 @@ class GameViewModelRetroGameView(
             Timber.i("Updating core variable: ${it.key} ${it.value}")
         }
 
-        retroGameView?.updateVariables(*updatedVariables)
+        retroGameView.updateVariables(*updatedVariables)
     }
 
     private fun handleRetroViewError(errorCode: Int) {

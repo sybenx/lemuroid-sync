@@ -12,6 +12,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.game.GameActivity
 import com.swordfish.lemuroid.app.mobile.feature.game.GameService
 import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
@@ -22,6 +23,7 @@ import com.swordfish.lemuroid.app.shared.coreoptions.CoreOption
 import com.swordfish.lemuroid.app.shared.coreoptions.LemuroidCoreOption
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelSideEffects
 import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
+import com.swordfish.lemuroid.app.shared.link.GameLink
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.ControllerConfigsManager
 import com.swordfish.lemuroid.app.tv.game.TVGameActivity
@@ -88,10 +90,12 @@ abstract class BaseGameActivity : ImmersiveActivity() {
 
     private val startGameTime = System.currentTimeMillis()
     private var finishTriggered = false
+    private var gameLink: GameLink.Connection = GameLink.Connection.Unplugged
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setUpExceptionsHandler()
+        gameLink = savedInstanceState?.getSerializable(STATE_GAME_LINK) as? GameLink.Connection ?: gameLink
         GameService.startService(applicationContext, intent)
         game = intent.getSerializableExtra(EXTRA_GAME) as Game
         systemCoreConfig = intent.getSerializableExtra(EXTRA_SYSTEM_CORE_CONFIG) as SystemCoreConfig
@@ -217,6 +221,9 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 this.putExtra(GameMenuContract.EXTRA_CURRENT_TILT_CONFIG, currentTiltConfiguration)
                 // TODO PADS... Make sure to avoid passing this if a physical pad is connected.
                 this.putExtra(GameMenuContract.EXTRA_TILT_ALL_CONFIGS, tiltConfigurations.toTypedArray())
+                if (GameLink.isSupported(systemCoreConfig.coreID)) {
+                    this.putExtra(GameMenuContract.EXTRA_LINK_CONNECTION, gameLink)
+                }
             }
         startActivityForResult(intent, DIALOG_REQUEST)
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
@@ -350,6 +357,25 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         super.onStop()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putSerializable(STATE_GAME_LINK, gameLink)
+    }
+
+    private fun applyGameLink(connection: GameLink.Connection) {
+        gameLink = connection
+        lifecycleScope.launch {
+            // The host starts listening right away; give it a head start before the guest dials in.
+            if (connection is GameLink.Connection.Guest) delay(GUEST_LINK_DELAY_MS)
+            baseGameScreenViewModel.retroGameView.retroGameView?.updateVariables(*GameLink.coreVariables(connection))
+        }
+        val message =
+            connection.peer
+                ?.let { getString(R.string.game_link_toast_linked, it.displayName) }
+                ?: getString(R.string.game_link_toast_unplugged)
+        displayToast(message)
+    }
+
     override fun onDestroy() {
         if (!isChangingConfigurations) {
             GameService.requestTermination()
@@ -413,11 +439,16 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 val tiltConfig = data.serializable<TiltConfiguration>(GameMenuContract.RESULT_CHANGE_TILT_CONFIG)
                 baseGameScreenViewModel.changeTiltConfiguration(tiltConfig!!)
             }
+            if (data?.hasExtra(GameMenuContract.RESULT_LINK) == true) {
+                data.serializable<GameLink.Connection>(GameMenuContract.RESULT_LINK)?.let { applyGameLink(it) }
+            }
         }
     }
 
     companion object {
         const val DIALOG_REQUEST = 100
+        private const val STATE_GAME_LINK = "STATE_GAME_LINK"
+        private const val GUEST_LINK_DELAY_MS = 1_500L
 
         private const val EXTRA_GAME = "GAME"
         private const val EXTRA_LOAD_SAVE = "LOAD_SAVE"
