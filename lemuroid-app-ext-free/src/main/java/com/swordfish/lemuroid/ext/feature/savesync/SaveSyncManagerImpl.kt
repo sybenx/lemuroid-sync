@@ -86,7 +86,8 @@ class SaveSyncManagerImpl(
     private fun performSaveSyncForCores(cores: Set<CoreID>) {
         val tree = RemoteTree(getDirectoryUri() ?: return, loadSyncedFiles())
 
-        tree.syncDirectory(directoriesManager.getSavesDirectory(), listOf(SAVES_DIRECTORY))
+        val pulledSaves = tree.syncDirectory(directoriesManager.getSavesDirectory(), listOf(SAVES_DIRECTORY))
+        moveAsideAutoStates(pulledSaves, cores)
 
         cores.forEach {
             tree.syncDirectory(
@@ -101,6 +102,27 @@ class SaveSyncManagerImpl(
 
         tree.syncedFiles.storeTo(syncedFilesFile())
         lastSyncTimestamp = System.currentTimeMillis()
+    }
+
+    /**
+     * A pulled save keeps the modification time it had on the other device, so an older auto state here can
+     * look newer than it and be resumed instead, and the game would then write that older progress back over
+     * the pulled save. States of cores whose states are synced as well are left alone.
+     */
+    private fun moveAsideAutoStates(
+        pulledSaves: List<File>,
+        syncedStateCores: Set<CoreID>,
+    ) {
+        if (pulledSaves.isEmpty()) return
+        val gameNames = pulledSaves.map { it.nameWithoutExtension }.toSet()
+        directoriesManager.getStatesDirectory().listFiles()
+            ?.filter { coreDir -> coreDir.isDirectory && syncedStateCores.none { it.coreName == coreDir.name } }
+            ?.forEach { coreDir ->
+                coreDir.listFiles()
+                    ?.filter { it.isFile && it.name.endsWith(AUTO_STATE_SUFFIX) }
+                    ?.filter { it.name.removeSuffix(AUTO_STATE_SUFFIX).substringBeforeLast(".") in gameNames }
+                    ?.forEach { moveToTrash(it, "$STATES_DIRECTORY/${coreDir.name}/${it.name}") }
+            }
     }
 
     private fun syncedFilesFile() = File(appContext.filesDir, SYNCED_FILES_NAME)
@@ -127,7 +149,7 @@ class SaveSyncManagerImpl(
         val target = File(trash, "${System.currentTimeMillis()}/$path")
         target.parentFile?.mkdirs()
         if (file.renameTo(target)) {
-            Timber.i("Moved $path to the trash, since it was deleted from the sync directory.")
+            Timber.i("Moved $path to the trash.")
         } else {
             Timber.w("Unable to move $path to the trash.")
         }
@@ -187,18 +209,25 @@ class SaveSyncManagerImpl(
         private val rootUri: Uri =
             DocumentsContract.buildDocumentUriUsingTree(treeUri, DocumentsContract.getTreeDocumentId(treeUri))
 
-        /** Two-way sync of [localDir] with the remote directory at [segments], e.g. ["states", "snes9x"]. */
+        private val pulledFiles = mutableListOf<File>()
+
+        /**
+         * Two-way sync of [localDir] with the remote directory at [segments], e.g. ["states", "snes9x"].
+         * Returns the local files that were replaced by, or created from, remote ones.
+         */
         fun syncDirectory(
             localDir: File,
             segments: List<String>,
-        ) {
-            val remoteDir = resolveDirectory(segments) ?: return
+        ): List<File> {
+            val remoteDir = resolveDirectory(segments) ?: return emptyList()
             val prefix = segments.joinToString("/", postfix = "/")
             localDir.mkdirs()
+            pulledFiles.clear()
             trashRemotelyDeletedFiles(remoteDir, localDir, prefix)
             pullDirectory(remoteDir, localDir)
             pushDirectory(localDir, remoteDir)
             rememberSyncedFiles(remoteDir, localDir, prefix)
+            return pulledFiles.toList()
         }
 
         private fun trashRemotelyDeletedFiles(
@@ -381,6 +410,7 @@ class SaveSyncManagerImpl(
             if (isBlank(data)) return
             localFile.parentFile?.mkdirs()
             localFile.writeBytesAtomic(data)
+            pulledFiles.add(localFile)
 
             if (remote.lastModified > 0) {
                 localFile.setLastModified(remote.lastModified)
@@ -439,6 +469,7 @@ class SaveSyncManagerImpl(
 
         private const val SYNCED_FILES_NAME = "external-directory-synced-files.properties"
         private const val TRASH_DIRECTORY = "save-sync-trash"
+        private const val AUTO_STATE_SUFFIX = ".state"
 
         // A larger batch is more likely a broken directory than files deleted on purpose.
         private const val MAX_DELETIONS_PER_SYNC = 10
