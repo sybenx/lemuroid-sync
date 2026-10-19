@@ -346,7 +346,8 @@ abstract class LemuroidApplicationModule {
         fun postGameHandler(
             retrogradeDatabase: RetrogradeDatabase,
             saveSyncManager: SaveSyncManager,
-        ) = GameLaunchTaskHandler(ReviewManager(), retrogradeDatabase, saveSyncManager)
+            settingsManager: SettingsManager,
+        ) = GameLaunchTaskHandler(ReviewManager(), retrogradeDatabase, saveSyncManager, settingsManager)
 
         @Provides
         @PerApp
