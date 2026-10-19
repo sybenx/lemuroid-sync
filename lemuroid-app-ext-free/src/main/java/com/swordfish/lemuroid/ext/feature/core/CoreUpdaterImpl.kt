@@ -48,6 +48,7 @@ class CoreUpdaterImpl(
     }
 
     private val baseUri = Uri.parse("https://github.com/Swordfish90/LemuroidCores/")
+    private val lemuroidSyncCoresUri = Uri.parse("https://github.com/sybenx/lemuroid-sync/raw/cores/")
 
     private val api = retrofit.create(CoreUpdater.CoreManagerApi::class.java)
 
@@ -98,11 +99,19 @@ class CoreUpdaterImpl(
         }
 
         val uri =
-            baseUri.buildUpon()
-                .appendEncodedPath("raw/$CORES_VERSION/lemuroid_core_${coreID.coreName}/src/main/jniLibs/")
-                .appendPath(Build.SUPPORTED_ABIS.first())
-                .appendPath(libFileName)
-                .build()
+            if (coreID == CoreID.TGBDUAL) {
+                // lemuroid-sync: LemuroidCores has no TGB Dual. This is libretro's build, kept in the fork.
+                lemuroidSyncCoresUri.buildUpon()
+                    .appendPath(Build.SUPPORTED_ABIS.first())
+                    .appendPath(libFileName)
+                    .build()
+            } else {
+                baseUri.buildUpon()
+                    .appendEncodedPath("raw/$CORES_VERSION/lemuroid_core_${coreID.coreName}/src/main/jniLibs/")
+                    .appendPath(Build.SUPPORTED_ABIS.first())
+                    .appendPath(libFileName)
+                    .build()
+            }
 
         try {
             downloadFile(uri, destFile)

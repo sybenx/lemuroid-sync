@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AppShortcut
+import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -49,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidGameTexts
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.LemuroidSmallGameImage
+import com.swordfish.lemuroid.app.shared.link.LocalLink
 import com.swordfish.lemuroid.lib.library.db.entity.Game
 import timber.log.Timber
 
@@ -76,6 +79,8 @@ fun MainGameContextActions(
     onClearCustomName: (Game) -> Unit,
     onSetCustomCoverUri: (Game, String) -> Unit,
     onClearCustomCoverUri: (Game) -> Unit,
+    findLinkPartners: suspend (Game) -> List<Game>,
+    onGameLink: (Game, Game) -> Unit,
 ) {
     val modalSheetState = rememberModalBottomSheetState(true)
     val selectedGame = selectedGameState.value
@@ -105,6 +110,8 @@ fun MainGameContextActions(
                 onClearCustomName = onClearCustomName,
                 onSetCustomCoverUri = onSetCustomCoverUri,
                 onClearCustomCoverUri = onClearCustomCoverUri,
+                findLinkPartners = findLinkPartners,
+                onGameLink = onGameLink,
             )
         }
     }
@@ -123,9 +130,12 @@ private fun ContextActionContent(
     onClearCustomName: (Game) -> Unit,
     onSetCustomCoverUri: (Game, String) -> Unit,
     onClearCustomCoverUri: (Game) -> Unit,
+    findLinkPartners: suspend (Game) -> List<Game>,
+    onGameLink: (Game, Game) -> Unit,
 ) {
     val context = LocalContext.current
     var showCustomNameDialog by remember { mutableStateOf(false) }
+    var showLinkDialog by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -169,6 +179,14 @@ private fun ContextActionContent(
                 selectedGameState.value = null
             },
         )
+
+        if (LocalLink.isSupported(selectedGame)) {
+            ContextActionEntry(
+                label = stringResource(id = R.string.game_context_menu_link),
+                icon = Icons.Default.Cable,
+                onClick = { showLinkDialog = true },
+            )
+        }
 
         if (selectedGame.isFavorite) {
             ContextActionEntry(
@@ -240,6 +258,19 @@ private fun ContextActionContent(
         }
     }
 
+    if (showLinkDialog) {
+        LinkPartnerDialog(
+            game = selectedGame,
+            findLinkPartners = findLinkPartners,
+            onDismiss = { showLinkDialog = false },
+            onPick = { partner ->
+                showLinkDialog = false
+                onGameLink(selectedGame, partner)
+                selectedGameState.value = null
+            },
+        )
+    }
+
     if (showCustomNameDialog) {
         CustomNameDialog(
             initialName = selectedGame.fileName,
@@ -250,6 +281,62 @@ private fun ContextActionContent(
                 selectedGameState.value = null
             },
         )
+    }
+}
+
+/** lemuroid-sync: picks the second game for a link cable session on this device. */
+@Composable
+private fun LinkPartnerDialog(
+    game: Game,
+    findLinkPartners: suspend (Game) -> List<Game>,
+    onDismiss: () -> Unit,
+    onPick: (Game) -> Unit,
+) {
+    val partners by produceState<List<Game>?>(null, game) { value = findLinkPartners(game) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.game_link_local_pick_title, game.customName ?: game.title)) },
+        text = {
+            val loadedPartners = partners
+            when {
+                loadedPartners == null -> Unit
+                loadedPartners.isEmpty() -> Text(stringResource(R.string.game_link_local_pick_empty))
+                else -> LinkPartnerList(loadedPartners, onPick)
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun LinkPartnerList(
+    partners: List<Game>,
+    onPick: (Game) -> Unit,
+) {
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        partners.forEach { partner ->
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(partner) }
+                        .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LemuroidSmallGameImage(
+                    modifier = Modifier.width(40.dp).height(40.dp),
+                    game = partner,
+                )
+                LemuroidGameTexts(
+                    modifier = Modifier.weight(1f).padding(start = 12.dp),
+                    game = partner,
+                )
+            }
+        }
     }
 }
 

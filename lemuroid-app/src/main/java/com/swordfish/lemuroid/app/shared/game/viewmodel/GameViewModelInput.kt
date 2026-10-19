@@ -12,6 +12,7 @@ import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.app.shared.input.InputKey
 import com.swordfish.lemuroid.app.shared.input.inputclass.getInputClass
+import com.swordfish.lemuroid.app.shared.link.LocalLink
 import com.swordfish.lemuroid.app.shared.settings.ControllerConfigsManager
 import com.swordfish.lemuroid.app.shared.settings.GameShortcutType
 import com.swordfish.lemuroid.common.coroutines.launchOnState
@@ -304,6 +305,13 @@ class GameViewModelInput(
                 val (device, action, keyCode) = event
                 val port = ports(device)
                 val bindKeyCode = bindings(device)[InputKey(keyCode)]?.keyCode ?: keyCode
+
+                // lemuroid-sync: with two linked games, L and R pick the Game Boy the controls drive.
+                val linkPlayer = LocalLink.playerForKey(bindKeyCode).takeIf { retroGameView.isLinked() }
+                if (linkPlayer != null) {
+                    if (action == KeyEvent.ACTION_DOWN) retroGameView.selectLinkPlayer(linkPlayer)
+                    return@safeCollect
+                }
 
                 if (port == 0) {
                     if (bindKeyCode == KeyEvent.KEYCODE_BUTTON_MODE && action == KeyEvent.ACTION_DOWN) {

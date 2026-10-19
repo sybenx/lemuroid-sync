@@ -276,4 +276,10 @@
     <string name="game_link_unplug">Unplug</string>
     <string name="game_link_toast_linked">Link cable connected to %1$s</string>
     <string name="game_link_toast_unplugged">Link cable unplugged</string>
+    <string name="game_context_menu_link">Link Cable</string>
+    <string name="game_link_local_pick_title">Link %1$s with</string>
+    <string name="game_link_local_pick_empty">There are no other Game Boy games to link with.</string>
+    <string name="game_link_local_hint">Linked with %1$s. Press L or R, or tap a screen, to switch Game Boys.</string>
+    <string name="game_link_local_player">Controlling Game Boy %1$d</string>
+    <string name="game_link_local_core_failed">Couldn\'t download the link cable core. Check the connection and try again.</string>
 </resources>

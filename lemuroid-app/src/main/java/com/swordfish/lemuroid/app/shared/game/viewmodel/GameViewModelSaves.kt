@@ -3,6 +3,7 @@ package com.swordfish.lemuroid.app.shared.game.viewmodel
 import android.content.Context
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
+import com.swordfish.lemuroid.app.shared.link.LocalLink
 import com.swordfish.lemuroid.common.graphics.GraphicsUtils
 import com.swordfish.lemuroid.common.graphics.takeScreenshot
 import com.swordfish.lemuroid.lib.library.GameSystem
@@ -31,12 +32,14 @@ class GameViewModelSaves(
     private val statesManager: StatesManager,
     private val statesPreviewManager: StatesPreviewManager,
     private val sideEffects: GameViewModelSideEffects,
+    private val linkedGame: Game? = null,
 ) {
     private var currentQuickSave: SaveState? = null
 
     data class SaveSnapshot(
         val sram: ByteArray,
         val autoSave: SaveState?,
+        val linkedSram: ByteArray? = null,
     )
 
     suspend fun saveSlot(index: Int) {
@@ -72,6 +75,16 @@ class GameViewModelSaves(
 
     suspend fun captureSaveSnapshot(useEmulationThread: Boolean): SaveSnapshot? {
         val retroGameView = retroGameView.retroGameView ?: return null
+        if (linkedGame != null) {
+            // Each linked Game Boy keeps its own save, and no state is written for the pair.
+            val player1 = retroGameView.serializeMemory(LocalLink.MEMORY_PLAYER_1_SAVE_RAM, useEmulationThread)
+            val player2 = retroGameView.serializeMemory(LocalLink.MEMORY_PLAYER_2_SAVE_RAM, useEmulationThread)
+            return SaveSnapshot(
+                player1.takeIf { this.retroGameView.wasLinkedSaveRestored(0, it) } ?: ByteArray(0),
+                null,
+                player2.takeIf { this.retroGameView.wasLinkedSaveRestored(1, it) },
+            )
+        }
         val sramState = retroGameView.serializeSRAM(useEmulationThread)
         val autoSaveState = if (isAutoSaveEnabled()) getCurrentSaveState(useEmulationThread) else null
         return SaveSnapshot(sramState, autoSaveState)
@@ -87,6 +100,9 @@ class GameViewModelSaves(
             snapshot.autoSave != null,
         )
         savesManager.setSaveRAM(game, snapshot.sram)
+        if (linkedGame != null && snapshot.linkedSram != null) {
+            savesManager.setSaveRAM(linkedGame, snapshot.linkedSram)
+        }
         snapshot.autoSave?.let { statesManager.setAutoSave(game, systemCoreConfig.coreID, it) }
     }
 

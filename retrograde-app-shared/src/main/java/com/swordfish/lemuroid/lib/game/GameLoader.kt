@@ -67,6 +67,7 @@ class GameLoader(
         loadSave: Boolean,
         systemCoreConfig: SystemCoreConfig,
         directLoad: Boolean,
+        linkedGame: Game? = null,
     ): Flow<LoadingState> =
         flow {
             try {
@@ -104,6 +105,19 @@ class GameLoader(
                     }.getOrElse { throw GameLoaderException(GameLoaderError.Saves) }
                 val saveRAMData = saveRAM.data
 
+                // lemuroid-sync: a second game linked to this one by cable, loaded by the same core.
+                val linkedGameFiles =
+                    linkedGame?.let {
+                        val dataFiles = retrogradeDatabase.dataFileDao().selectDataFilesForGame(it.id)
+                        lemuroidLibrary.getGameFiles(it, dataFiles, false)
+                    }
+
+                val linkedSaveRAMData =
+                    linkedGame?.let {
+                        runCatching { savesManager.getSaveRAM(it, systemCoreConfig) }
+                            .getOrElse { throw GameLoaderException(GameLoaderError.Saves) }
+                    }
+
                 val quickSaveData =
                     runCatching {
                         val shouldDiscardSave =
@@ -138,6 +152,9 @@ class GameLoader(
                             coreVariables,
                             systemDirectory,
                             savesDirectory,
+                            linkedGame,
+                            linkedGameFiles,
+                            linkedSaveRAMData,
                         ),
                     ),
                 )
@@ -180,5 +197,8 @@ class GameLoader(
         val coreVariables: Array<CoreVariable>,
         val systemDirectory: File,
         val savesDirectory: File,
+        val linkedGame: Game? = null,
+        val linkedGameFiles: RomFiles? = null,
+        val linkedSaveRAMData: ByteArray? = null,
     )
 }

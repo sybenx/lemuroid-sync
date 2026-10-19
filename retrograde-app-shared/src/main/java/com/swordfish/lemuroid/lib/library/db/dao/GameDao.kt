@@ -67,6 +67,9 @@ interface GameDao {
     @Query("SELECT * FROM games WHERE systemId IN (:systemIds) ORDER BY COALESCE(customName, title) ASC, id DESC")
     fun selectBySystems(systemIds: List<String>): PagingSource<Int, Game>
 
+    @Query("SELECT * FROM games WHERE systemId IN (:systemIds) ORDER BY COALESCE(customName, title) ASC, id DESC")
+    suspend fun asyncSelectBySystems(systemIds: List<String>): List<Game>
+
     @Query("SELECT DISTINCT systemId FROM games ORDER BY systemId ASC")
     suspend fun selectSystems(): List<String>
 

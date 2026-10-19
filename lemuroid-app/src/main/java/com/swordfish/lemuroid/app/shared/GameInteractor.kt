@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.shortcuts.ShortcutsGenerator
 import com.swordfish.lemuroid.app.shared.game.GameLauncher
+import com.swordfish.lemuroid.app.shared.link.LocalLink
 import com.swordfish.lemuroid.app.shared.main.BusyActivity
 import com.swordfish.lemuroid.common.displayToast
 import com.swordfish.lemuroid.lib.library.covers.CustomCoverManager
@@ -42,6 +43,25 @@ class GameInteractor(
             return
         }
         gameLauncher.launchGameAsync(activity.activity(), game, false, useLeanback)
+    }
+
+    fun onGameLink(
+        game: Game,
+        linkedGame: Game,
+    ) {
+        if (!ensureNotBusy()) {
+            return
+        }
+        if (!ensureNotificationsPermissionAvailable()) {
+            return
+        }
+        gameLauncher.launchLinkedGamesAsync(activity.activity(), game, linkedGame, useLeanback)
+    }
+
+    /** Games that [game] can be linked with on this device, or none if it has no link cable. */
+    suspend fun findLinkPartners(game: Game): List<Game> {
+        if (!LocalLink.isSupported(game)) return emptyList()
+        return retrogradeDb.gameDao().asyncSelectBySystems(LocalLink.SYSTEMS).filter { it.id != game.id }
     }
 
     fun onFavoriteToggle(

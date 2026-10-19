@@ -369,6 +369,8 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                 onClearCustomName = { game -> gameInteractor.onClearCustomName(game) },
                 onSetCustomCoverUri = { game, uri -> gameInteractor.onSetCustomCoverUri(game, uri) },
                 onClearCustomCoverUri = { game -> gameInteractor.onClearCustomCoverUri(game) },
+                findLinkPartners = { gameInteractor.findLinkPartners(it) },
+                onGameLink = { game, linkedGame -> gameInteractor.onGameLink(game, linkedGame) },
             )
 
             if (infoDialogDisplayed.value) {

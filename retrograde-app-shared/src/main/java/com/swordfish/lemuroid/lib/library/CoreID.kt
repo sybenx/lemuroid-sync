@@ -36,6 +36,12 @@ enum class CoreID(
         "Gambatte",
         "libgambatte_libretro_android.so",
     ),
+    // lemuroid-sync: only used to link two Game Boy games on one device, never picked for a system.
+    TGBDUAL(
+        "tgbdual",
+        "TGB Dual",
+        "libtgbdual_libretro_android.so",
+    ),
     MGBA(
         "mgba",
         "mGBA",

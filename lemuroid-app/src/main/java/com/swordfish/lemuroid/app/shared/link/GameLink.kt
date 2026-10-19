@@ -12,7 +12,13 @@ object GameLink {
     /** The port Gambatte listens on. One of the values its "gambatte_gb_link_network_port" option accepts. */
     const val GAME_PORT = 56400
 
-    fun isSupported(coreID: CoreID): Boolean = coreID == CoreID.GAMBATTE
+    /**
+     * Off for now: Gambatte waits for a network round trip on every byte, which is too slow and freezes on
+     * Wi-Fi. Linking two games on one device (LocalLink) replaces it until a lockstep version exists.
+     */
+    private const val ENABLED = false
+
+    fun isSupported(coreID: CoreID): Boolean = ENABLED && coreID == CoreID.GAMBATTE
 
     /** Where the cable currently goes. Kept for the lifetime of a game session. */
     sealed interface Connection : Serializable {

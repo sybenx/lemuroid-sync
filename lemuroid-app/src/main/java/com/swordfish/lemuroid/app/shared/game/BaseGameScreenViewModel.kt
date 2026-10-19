@@ -60,6 +60,7 @@ class BaseGameScreenViewModel(
     statesPreviewManager: StatesPreviewManager,
     coreVariablesManager: CoreVariablesManager,
     rumbleManager: RumbleManager,
+    private val linkedGame: Game? = null,
 ) : ViewModel(), DefaultLifecycleObserver {
     class Factory(
         private val appContext: Context,
@@ -75,6 +76,7 @@ class BaseGameScreenViewModel(
         private val statesPreviewManager: StatesPreviewManager,
         private val coreVariablesManager: CoreVariablesManager,
         private val rumbleManager: RumbleManager,
+        private val linkedGame: Game? = null,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return BaseGameScreenViewModel(
@@ -91,6 +93,7 @@ class BaseGameScreenViewModel(
                 statesPreviewManager,
                 coreVariablesManager,
                 rumbleManager,
+                linkedGame,
             ) as T
         }
     }
@@ -142,6 +145,7 @@ class BaseGameScreenViewModel(
             statesManager,
             statesPreviewManager,
             sideEffects,
+            linkedGame,
         )
 
     val loadingState = MutableStateFlow(false)
@@ -200,7 +204,7 @@ class BaseGameScreenViewModel(
         requestLoadSave: Boolean,
     ) {
         Timber.i("Calling load game: $game")
-        retroGameView.initialize(applicationContext, game, systemCoreConfig, gameLoader, requestLoadSave)
+        retroGameView.initialize(applicationContext, game, systemCoreConfig, gameLoader, requestLoadSave, linkedGame)
     }
 
     fun showEditControls(show: Boolean) {

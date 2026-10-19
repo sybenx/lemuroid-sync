@@ -392,7 +392,8 @@ abstract class LemuroidApplicationModule {
             coresSelection: CoresSelection,
             gameLaunchTaskHandler: GameLaunchTaskHandler,
             saveSyncManager: SaveSyncManager,
-        ) = GameLauncher(coresSelection, gameLaunchTaskHandler, saveSyncManager)
+            coreUpdater: CoreUpdater,
+        ) = GameLauncher(coresSelection, gameLaunchTaskHandler, saveSyncManager, coreUpdater)
 
         @Provides
         @PerApp

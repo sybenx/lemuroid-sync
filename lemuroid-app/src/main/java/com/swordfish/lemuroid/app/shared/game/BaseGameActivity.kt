@@ -100,6 +100,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         game = intent.getSerializableExtra(EXTRA_GAME) as Game
         systemCoreConfig = intent.getSerializableExtra(EXTRA_SYSTEM_CORE_CONFIG) as SystemCoreConfig
         system = GameSystem.findById(game.systemId)
+        val linkedGame = intent.getSerializableExtra(EXTRA_LINKED_GAME) as Game?
 
         val viewModel by viewModels<BaseGameScreenViewModel> {
             BaseGameScreenViewModel.Factory(
@@ -116,6 +117,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 statesPreviewManager,
                 coreVariablesManager,
                 rumbleManager,
+                linkedGame,
             )
         }
 
@@ -139,6 +141,10 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 gameLoader,
                 intent.getBooleanExtra(EXTRA_LOAD_SAVE, false),
             )
+        }
+
+        if (linkedGame != null && savedInstanceState == null) {
+            displayToast(getString(R.string.game_link_local_hint, linkedGame.title))
         }
 
         onBackPressedDispatcher.addCallback(
@@ -454,6 +460,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         private const val EXTRA_LOAD_SAVE = "LOAD_SAVE"
         private const val EXTRA_LEANBACK = "LEANBACK"
         private const val EXTRA_SYSTEM_CORE_CONFIG = "EXTRA_SYSTEM_CORE_CONFIG"
+        private const val EXTRA_LINKED_GAME = "EXTRA_LINKED_GAME"
 
         const val REQUEST_PLAY_GAME = 1001
         const val PLAY_GAME_RESULT_SESSION_DURATION = "PLAY_GAME_RESULT_SESSION_DURATION"
@@ -470,6 +477,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
             game: Game,
             loadSave: Boolean,
             useLeanback: Boolean,
+            linkedGame: Game? = null,
         ) {
             val gameActivity =
                 if (useLeanback) {
@@ -483,6 +491,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                     putExtra(EXTRA_LOAD_SAVE, loadSave)
                     putExtra(EXTRA_LEANBACK, useLeanback)
                     putExtra(EXTRA_SYSTEM_CORE_CONFIG, systemCoreConfig)
+                    linkedGame?.let { putExtra(EXTRA_LINKED_GAME, it) }
                 },
                 REQUEST_PLAY_GAME,
             )

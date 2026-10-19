@@ -2,6 +2,7 @@ package com.swordfish.lemuroid.app.shared.game.viewmodel
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
@@ -10,6 +11,7 @@ import com.swordfish.lemuroid.BuildConfig
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
 import com.swordfish.lemuroid.app.shared.game.ShaderChooser
+import com.swordfish.lemuroid.app.shared.link.LocalLink
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.HDModeQuality
 import com.swordfish.lemuroid.common.coroutines.MutableStateProperty
@@ -44,6 +46,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.FileInputStream
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(FlowPreview::class)
@@ -86,6 +89,7 @@ class GameViewModelRetroGameView(
         systemCoreConfig: SystemCoreConfig,
         gameLoader: GameLoader,
         requestLoadSave: Boolean,
+        linkedGame: Game? = null,
     ) {
         val currentState = gameState.value
         if (currentState != GameState.Uninitialized) return
@@ -115,6 +119,7 @@ class GameViewModelRetroGameView(
                 requestLoadSave && autoSaveEnabled,
                 systemCoreConfig,
                 directLoad,
+                linkedGame,
             )
 
         loadingStatesFlow
@@ -175,6 +180,12 @@ class GameViewModelRetroGameView(
             result.disableTouchEvents()
         }
 
+        if (currentState.gameData.linkedGame != null) {
+            linkedPlayersView = result
+            linkedLoadedSaves = listOf(currentState.gameData.saveRAMData, currentState.gameData.linkedSaveRAMData)
+            result.setOnTouchListener { _, event -> selectLinkPlayerAt(result, event) }
+        }
+
         lifecycle.lifecycle.addObserver(result)
 
         if (BuildConfig.DEBUG) {
@@ -205,6 +216,65 @@ class GameViewModelRetroGameView(
             .first()
     }
 
+    /** lemuroid-sync: which linked Game Boy the controls drive. Null when no game is linked. */
+    private var linkedPlayersView: GLRetroView? = null
+    private val linkedPlayer = MutableStateFlow(0)
+    private var linkedViewportAlignment = ViewportAlignment.CENTER
+
+    private var linkedLoadedSaves: List<ByteArray?> = listOf()
+
+    fun isLinked(): Boolean = linkedPlayersView != null
+
+    /**
+     * The core refuses a save larger than its save memory, and that game then starts blank. Writing its
+     * memory back would replace the real save, so only saves that fit were restored and may be written.
+     */
+    fun wasLinkedSaveRestored(
+        player: Int,
+        saveRAM: ByteArray,
+    ): Boolean {
+        val loaded = linkedLoadedSaves.getOrNull(player) ?: return true
+        return loaded.size <= saveRAM.size
+    }
+
+    fun selectLinkPlayer(player: Int) {
+        val retroGameView = linkedPlayersView ?: return
+        if (linkedPlayer.value == player) return
+        linkedPlayer.value = player
+        retroGameView.inputPortOverride = player
+        LocalLink.audioVariable(player).let { retroGameView.updateVariables(Variable(it.key, it.value)) }
+        sideEffects.showToast(appContext.getString(R.string.game_link_local_player, player + 1))
+    }
+
+    /** Tapping one of the two screens hands the controls to that Game Boy. */
+    private fun selectLinkPlayerAt(
+        view: GLRetroView,
+        event: MotionEvent,
+    ): Boolean {
+        if (event.actionMasked != MotionEvent.ACTION_UP) return true
+        val area = view.viewport
+        val areaLeft = view.width * area.left
+        val areaTop = view.height * area.top
+        val areaWidth = view.width * area.width()
+        val areaHeight = view.height * area.height()
+        val player =
+            if (LocalLink.isStacked(systemCoreConfig)) {
+                // Stacked screens (160x288), aligned inside the area like any other game.
+                val screensHeight = minOf(areaHeight, areaWidth * LINKED_SCREENS_ASPECT)
+                val screensTop =
+                    when (linkedViewportAlignment) {
+                        ViewportAlignment.TOP -> areaTop
+                        ViewportAlignment.BOTTOM -> areaTop + areaHeight - screensHeight
+                        else -> areaTop + (areaHeight - screensHeight) / 2f
+                    }
+                if (event.y < screensTop + screensHeight / 2f) 0 else 1
+            } else {
+                if (event.x < areaLeft + areaWidth / 2f) 0 else 1
+            }
+        selectLinkPlayer(player)
+        return true
+    }
+
     private fun buildRetroViewData(
         appContext: Context,
         systemCoreConfig: SystemCoreConfig,
@@ -221,13 +291,24 @@ class GameViewModelRetroGameView(
         return GLRetroViewData(appContext).apply {
             coreFilePath = gameData.coreLibrary
 
-            when (val gameFiles = gameData.gameFiles) {
-                is RomFiles.Standard -> {
-                    gameFilePath = gameFiles.files.first().absolutePath
-                }
+            val linkedGameFiles = gameData.linkedGameFiles
+            if (linkedGameFiles != null) {
+                gameSpecialType = LocalLink.GAME_TYPE_LINK_2P
+                gameSpecialFilesBytes = listOf(readRomBytes(gameData.gameFiles), readRomBytes(linkedGameFiles))
+                memoryStates =
+                    buildMap {
+                        gameData.saveRAMData?.let { put(LocalLink.MEMORY_PLAYER_1_SAVE_RAM, it) }
+                        gameData.linkedSaveRAMData?.let { put(LocalLink.MEMORY_PLAYER_2_SAVE_RAM, it) }
+                    }
+            } else {
+                when (val gameFiles = gameData.gameFiles) {
+                    is RomFiles.Standard -> {
+                        gameFilePath = gameFiles.files.first().absolutePath
+                    }
 
-                is RomFiles.Virtual -> {
-                    gameVirtualFiles = gameFiles.files.map { VirtualFile(it.filePath, it.fd) }
+                    is RomFiles.Virtual -> {
+                        gameVirtualFiles = gameFiles.files.map { VirtualFile(it.filePath, it.fd) }
+                    }
                 }
             }
 
@@ -249,11 +330,19 @@ class GameViewModelRetroGameView(
                     "bottom" -> ViewportAlignment.BOTTOM
                     else -> ViewportAlignment.CENTER
                 }
+            linkedViewportAlignment = viewportAlignment
             preferLowLatencyAudio = lowLatencyAudio
             rumbleEventsEnabled = requestRumble
             skipDuplicateFrames = systemCoreConfig.skipDuplicateFrames
             enableMicrophone = requestMicrophone
             immersiveMode = buildImmersiveModeConfiguration(enableImmersiveMode)
+        }
+    }
+
+    private fun readRomBytes(romFiles: RomFiles): ByteArray {
+        return when (romFiles) {
+            is RomFiles.Standard -> romFiles.files.first().readBytes()
+            is RomFiles.Virtual -> romFiles.files.first().fd.use { FileInputStream(it.fileDescriptor).readBytes() }
         }
     }
 
@@ -277,6 +366,10 @@ class GameViewModelRetroGameView(
 
             else -> ""
         }
+    }
+
+    companion object {
+        private const val LINKED_SCREENS_ASPECT = 288f / 160f
     }
 
     private fun printRetroVariables(retroGameView: GLRetroView) {
