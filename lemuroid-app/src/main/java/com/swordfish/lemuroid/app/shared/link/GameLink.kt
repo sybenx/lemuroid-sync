@@ -30,6 +30,17 @@ object GameLink {
         /** This device connects to the other one at [address]. */
         data class Guest(override val peer: LinkIdentity, val address: String) : Connection
 
+        /**
+         * Linked with a friend through the relay, who may be anywhere. [peerAddresses] are tried first, in
+         * case the two devices can also reach each other directly (same Wi-Fi or Tailscale).
+         */
+        data class Online(
+            override val peer: LinkIdentity,
+            val session: String,
+            val isHost: Boolean,
+            val peerAddresses: List<String>,
+        ) : Connection
+
         data object Unplugged : Connection {
             override val peer: LinkIdentity? = null
         }
@@ -40,7 +51,7 @@ object GameLink {
             when (connection) {
                 is Connection.Host -> "Network Server"
                 is Connection.Guest -> "Network Client"
-                Connection.Unplugged -> "Not Connected"
+                is Connection.Online, Connection.Unplugged -> "Not Connected"
             }
         val variables =
             mutableListOf(

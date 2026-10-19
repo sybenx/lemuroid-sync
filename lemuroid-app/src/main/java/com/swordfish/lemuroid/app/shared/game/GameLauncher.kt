@@ -70,7 +70,8 @@ class GameLauncher(
         connection: GameLink.Connection,
         leanback: Boolean,
     ): Boolean {
-        val player = if (connection is GameLink.Connection.Host) 0 else 1
+        val isHost = connection is GameLink.Connection.Host || connection is GameLink.Connection.Online && connection.isHost
+        val player = if (isHost) 0 else 1
         return launchLinkAsync(activity, LocalLink.coreConfig(game, false, player)) { coreConfig ->
             BaseGameActivity.launchGame(activity, coreConfig, game, false, leanback, netLink = connection)
         }

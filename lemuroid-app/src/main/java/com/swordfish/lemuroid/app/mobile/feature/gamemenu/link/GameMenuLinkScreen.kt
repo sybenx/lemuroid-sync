@@ -2,7 +2,10 @@ package com.swordfish.lemuroid.app.mobile.feature.gamemenu.link
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -77,6 +83,14 @@ fun GameMenuLinkScreen(
             )
             Divider(modifier = Modifier.fillMaxWidth())
             NearbyList(state, onPeerClicked = viewModel::invite)
+            Divider(modifier = Modifier.fillMaxWidth())
+            FriendsList(state, onFriendClicked = viewModel::invite, onForget = viewModel::forget)
+            AddFriendCard(
+                code = state.code,
+                onShowCode = viewModel::showMyCode,
+                onEnterCode = viewModel::enterCode,
+                onDismiss = viewModel::dismissCode,
+            )
         }
     }
 
@@ -241,15 +255,8 @@ private fun NearbyList(
         }
 
         state.peers.forEach { peer ->
-            val outgoing = state.outgoing?.takeIf { it.peer.deviceId == peer.deviceId }
-            val status =
-                when (outgoing) {
-                    is GameMenuLinkViewModel.Outgoing.Waiting -> stringResource(R.string.game_link_waiting)
-                    is GameMenuLinkViewModel.Outgoing.Declined -> stringResource(R.string.game_link_declined)
-                    is GameMenuLinkViewModel.Outgoing.Busy -> stringResource(R.string.game_link_busy)
-                    is GameMenuLinkViewModel.Outgoing.Failed -> stringResource(R.string.game_link_failed)
-                    null -> peer.gameTitle
-                }
+            val outgoing = state.outgoing?.takeIf { it.deviceId == peer.deviceId }
+            val status = outgoingStatus(outgoing) ?: peer.gameTitle
             ListItem(
                 modifier = Modifier.clickable { onPeerClicked(peer) },
                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
@@ -265,6 +272,203 @@ private fun NearbyList(
         }
     }
 }
+
+@Composable
+private fun outgoingStatus(outgoing: GameMenuLinkViewModel.Outgoing?): String? {
+    return when (outgoing) {
+        is GameMenuLinkViewModel.Outgoing.Waiting -> stringResource(R.string.game_link_waiting)
+        is GameMenuLinkViewModel.Outgoing.Declined -> stringResource(R.string.game_link_declined)
+        is GameMenuLinkViewModel.Outgoing.Busy -> stringResource(R.string.game_link_busy)
+        is GameMenuLinkViewModel.Outgoing.Failed -> stringResource(R.string.game_link_failed)
+        null -> null
+    }
+}
+
+/** Friends who aren't on this Wi-Fi: they can be invited wherever they are, while they have Link Cable open. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FriendsList(
+    state: GameMenuLinkViewModel.State,
+    onFriendClicked: (GameMenuLinkViewModel.Friend) -> Unit,
+    onForget: (GameMenuLinkViewModel.Friend) -> Unit,
+) {
+    var forgetting by remember { mutableStateOf<GameMenuLinkViewModel.Friend?>(null) }
+    val friends = state.friends.filterNot { it.isNearby }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+            SectionLabel(stringResource(R.string.game_link_friends))
+        }
+
+        val hint =
+            when {
+                state.friends.isEmpty() -> stringResource(R.string.game_link_friends_empty)
+                !state.relayConnected -> stringResource(R.string.game_link_friends_offline)
+                else -> null
+            }
+        hint?.let {
+            Text(
+                text = it,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        friends.forEach { friend ->
+            val outgoing = state.outgoing?.takeIf { it.deviceId == friend.friend.deviceId }
+            val status =
+                outgoingStatus(outgoing)
+                    ?: friend.online?.let { online ->
+                        if (online.gameTitle.isNotBlank()) {
+                            stringResource(R.string.game_link_friend_playing, online.gameTitle)
+                        } else {
+                            stringResource(R.string.game_link_friend_online)
+                        }
+                    }
+                    ?: stringResource(R.string.game_link_friend_offline)
+            ListItem(
+                modifier =
+                    Modifier.combinedClickable(
+                        enabled = true,
+                        onClick = { onFriendClicked(friend) },
+                        onLongClick = { forgetting = friend },
+                    ),
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                leadingContent = { LinkAvatar(friend.friend.identity, size = 40.dp) },
+                headlineContent = {
+                    Text(
+                        text = friend.friend.identity.displayName,
+                        color =
+                            if (friend.online != null) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                    )
+                },
+                supportingContent = { Text(status) },
+                trailingContent = {
+                    if (outgoing is GameMenuLinkViewModel.Outgoing.Waiting) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    }
+                },
+            )
+        }
+    }
+
+    forgetting?.let { friend ->
+        AlertDialog(
+            onDismissRequest = { forgetting = null },
+            title = { Text(stringResource(R.string.game_link_forget_title, friend.friend.identity.displayName)) },
+            text = { Text(stringResource(R.string.game_link_forget_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onForget(friend)
+                    forgetting = null
+                }) { Text(stringResource(R.string.game_link_forget)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { forgetting = null }) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
+    }
+}
+
+/** Adds a friend who has never been on the same Wi-Fi: one shows a code, the other enters it. */
+@Composable
+private fun AddFriendCard(
+    code: GameMenuLinkViewModel.Code?,
+    onShowCode: () -> Unit,
+    onEnterCode: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var entering by remember { mutableStateOf(false) }
+    var typed by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(
+            text = stringResource(R.string.game_link_add_friend_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onShowCode) { Text(stringResource(R.string.game_link_show_code)) }
+            OutlinedButton(onClick = {
+                typed = ""
+                entering = true
+            }) { Text(stringResource(R.string.game_link_enter_code)) }
+        }
+    }
+
+    if (code is GameMenuLinkViewModel.Code.Mine && !entering) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.game_link_your_code)) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = code.code.chunked(3).joinToString(" "),
+                        style = MaterialTheme.typography.displaySmall,
+                    )
+                    Spacer(modifier = Modifier.size(12.dp))
+                    Text(stringResource(R.string.game_link_your_code_hint), textAlign = TextAlign.Center)
+                }
+            },
+            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.game_link_done)) } },
+        )
+    }
+
+    if (entering) {
+        val valid = typed.length == CODE_LENGTH
+        AlertDialog(
+            onDismissRequest = {
+                entering = false
+                onDismiss()
+            },
+            title = { Text(stringResource(R.string.game_link_enter_code)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = typed,
+                        onValueChange = { value -> typed = value.filter { it.isDigit() }.take(CODE_LENGTH) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        textStyle = MaterialTheme.typography.headlineSmall,
+                    )
+                    when (code) {
+                        GameMenuLinkViewModel.Code.Invalid ->
+                            Text(
+                                text = stringResource(R.string.game_link_code_invalid),
+                                modifier = Modifier.padding(top = 8.dp),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        GameMenuLinkViewModel.Code.Loading ->
+                            CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp).size(20.dp), strokeWidth = 2.dp)
+                        else -> Unit
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = valid, onClick = { onEnterCode(typed) }) {
+                    Text(stringResource(R.string.game_link_add_friend))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    entering = false
+                    onDismiss()
+                }) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
+        // The friend arrived: the code is cleared, so close.
+        LaunchedEffect(code) {
+            if (code == null && typed.length == CODE_LENGTH) entering = false
+        }
+    }
+}
+
+private const val CODE_LENGTH = 6
 
 @Composable
 private fun SectionLabel(text: String) {

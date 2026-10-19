@@ -387,7 +387,7 @@ class GameViewModelRetroGameView(
                 val players = if (netSetup.localPlayer == 0) listOf(own, partner) else listOf(partner, own)
                 setLinkedGames(players.map { it.first }, players.map { it.second })
                 netplay =
-                    NetplayConfig(netSetup.socketFd, netSetup.isHost, netSetup.localPlayer, NetLink.INPUT_DELAY_FRAMES)
+                    NetplayConfig(netSetup.socketFd, netSetup.isHost, netSetup.localPlayer, netSetup.partner.inputDelay)
             } else if (linkedGameFiles != null) {
                 setLinkedGames(
                     listOf(readRomBytes(gameData.gameFiles), readRomBytes(linkedGameFiles)),

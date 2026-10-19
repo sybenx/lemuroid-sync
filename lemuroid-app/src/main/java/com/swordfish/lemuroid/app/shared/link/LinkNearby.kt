@@ -21,6 +21,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.swordfish.lemuroid.app.shared.link.LinkFriendsStore.Companion.toStrings
+import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.BufferedReader
@@ -42,6 +44,8 @@ data class LinkPeer(
     val gameTitle: String,
     val address: String,
     val port: Int,
+    /** All of the device's addresses, e.g. its Tailscale one, to reach it again when not nearby. */
+    val addresses: List<String> = listOf(address),
 )
 
 /** An invite from another player, waiting for this player to answer. */
@@ -49,6 +53,8 @@ class IncomingInvite internal constructor(
     val from: LinkIdentity,
     val gameTitle: String,
     internal val answer: CompletableDeferred<Boolean>,
+    val fromDeviceId: String = "",
+    val fromAddresses: List<String> = emptyList(),
 ) {
     /** Becomes true when the other player gives up before this player answers. */
     val cancelled = MutableStateFlow(false)
@@ -136,6 +142,7 @@ class LinkNearby(
                             .put("color", me.color.name)
                             .put("creature", me.creature.name)
                             .put("game", gameTitle)
+                            .put("addrs", JSONArray(LinkFriendsStore.localAddresses()))
                     writer.println(message.toString())
                     val reply = reader.readLine()?.let { JSONObject(it) }
                     when (reply?.optString("type")) {
@@ -182,7 +189,14 @@ class LinkNearby(
                 }
                 busy = true
                 try {
-                    val invite = IncomingInvite(from, message.optString("game"), CompletableDeferred())
+                    val invite =
+                        IncomingInvite(
+                            from,
+                            message.optString("game"),
+                            CompletableDeferred(),
+                            message.optString("id"),
+                            message.optJSONArray("addrs").toStrings(),
+                        )
                     invitesChannel.send(invite)
 
                     // Reading again only returns when the inviter hangs up, which means they gave up.
@@ -228,6 +242,7 @@ class LinkNearby(
                 setAttribute("color", identity.color.name)
                 setAttribute("creature", identity.creature.name)
                 setAttribute("game", gameTitle.take(MAX_TITLE_LENGTH))
+                setAttribute("addrs", LinkFriendsStore.localAddresses().joinToString(","))
             }
         val listener =
             object : NsdManager.RegistrationListener {
@@ -342,6 +357,7 @@ class LinkNearby(
                 gameTitle = attributes["game"] ?: "",
                 address = address,
                 port = resolved.port,
+                addresses = (listOf(address) + (attributes["addrs"]?.split(",") ?: emptyList())).filter { it.isNotBlank() }.distinct(),
             )
         }
 
