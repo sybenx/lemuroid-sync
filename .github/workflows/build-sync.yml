@@ -73,6 +73,30 @@ jobs:
         if: steps.merge.outputs.skip == 'false'
         run: git submodule update --init --recursive
 
+      # LibretroDroid comes from the sybenx fork (link cable). Use its build of whatever version upstream
+      # Lemuroid asks for; the fork follows upstream releases on its own.
+      - name: Match the LibretroDroid fork to upstream's version
+        if: steps.merge.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          wanted=$(sed -n 's/.*const val libretrodroid *= *"\(.*\)".*/\1/p' buildSrc/src/main/java/deps.kt | head -1)
+          current=$(cat libretrodroid-fork.version)
+          if [ "${current%-sync.*}" = "${wanted}" ]; then
+            echo "Upstream wants LibretroDroid ${wanted}, using ${current}"
+            exit 0
+          fi
+          pattern="^$(printf '%s' "${wanted}" | sed 's/\./\\./g')-sync\.[0-9]+$"
+          fork=$(gh api repos/sybenx/LibretroDroid/tags --paginate --jq '.[].name' | grep -E "${pattern}" | sort -V | tail -1 || true)
+          if [ -z "${fork}" ]; then
+            title="LibretroDroid fork has no build of ${wanted} yet"
+            if ! gh issue list --state open --search "\"${title}\" in:title" --json number --jq '.[].number' | grep -q .; then
+              gh issue create --title "${title}" --body "$(printf 'Upstream Lemuroid now uses LibretroDroid %s. The fork (sybenx/LibretroDroid) follows upstream releases daily; if its workflow opened an issue, merge by hand and tag %s-sync.1, then rerun this build.' "${wanted}" "${wanted}")"
+            fi
+            exit 1
+          fi
+          echo "Upstream wants LibretroDroid ${wanted}, using ${fork}"
+          echo "${fork}" > libretrodroid-fork.version
+
       - name: Set up JDK 17
         if: steps.merge.outputs.skip == 'false'
         uses: actions/setup-java@v4

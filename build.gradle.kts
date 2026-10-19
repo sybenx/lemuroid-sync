@@ -90,3 +90,5 @@ tasks {
         delete(buildDir)
     }
 }
+
+apply(from = "libretrodroid-fork.gradle.kts")
