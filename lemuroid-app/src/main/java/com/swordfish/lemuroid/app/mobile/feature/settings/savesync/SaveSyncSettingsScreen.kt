@@ -70,7 +70,7 @@ fun SaveSyncSettingsScreen(
                 onClick = { context.startActivity(Intent(context, saveSyncState.settingsActivity)) },
             )
             LemuroidSettingsSwitch(
-                state = booleanPreferenceState(R.string.pref_key_save_sync_enable, default = false),
+                state = booleanPreferenceState(R.string.pref_key_save_sync_enable, default = true),
                 title = { Text(text = stringResource(id = R.string.settings_save_sync_include_saves)) },
                 subtitle = {
                     Text(
