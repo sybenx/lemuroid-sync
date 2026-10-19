@@ -23,6 +23,7 @@ class SaveSyncPreferences(private val saveSyncManager: SaveSyncManager) {
 
         SwitchPreference(context).apply {
             key = keySyncEnabled(context)
+            setDefaultValue(true)
             preferenceScreen.addPreference(this)
         }
 
