@@ -316,6 +316,7 @@ class BaseGameScreenViewModel(
     }
 
     fun handleVirtualInputEvent(events: List<InputEvent>) {
+        if (events.isNotEmpty()) retroGameView.onVirtualInput()
         touchControls.handleVirtualInputEvent(events)
     }
 

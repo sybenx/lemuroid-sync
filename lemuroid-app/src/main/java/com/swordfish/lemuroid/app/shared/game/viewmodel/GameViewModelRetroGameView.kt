@@ -2,6 +2,7 @@ package com.swordfish.lemuroid.app.shared.game.viewmodel
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
@@ -220,6 +221,13 @@ class GameViewModelRetroGameView(
     private var linkedPlayersView: GLRetroView? = null
     private val linkedPlayer = MutableStateFlow(0)
     private var linkedViewportAlignment = ViewportAlignment.CENTER
+    private var linkedTapPlayer: Int? = null
+    private var lastVirtualInputAt = 0L
+
+    /** Called for every touch control event, so pressing the pad never counts as tapping a screen. */
+    fun onVirtualInput() {
+        lastVirtualInputAt = SystemClock.uptimeMillis()
+    }
 
     private var linkedLoadedSaves: List<ByteArray?> = listOf()
 
@@ -246,33 +254,63 @@ class GameViewModelRetroGameView(
         sideEffects.showToast(appContext.getString(R.string.game_link_local_player, player + 1))
     }
 
-    /** Tapping one of the two screens hands the controls to that Game Boy. */
+    /**
+     * Tapping one of the two screens hands the controls to that Game Boy. Touches elsewhere, like the
+     * virtual pad's buttons that reach this view too, never switch.
+     */
     private fun selectLinkPlayerAt(
         view: GLRetroView,
         event: MotionEvent,
     ): Boolean {
-        if (event.actionMasked != MotionEvent.ACTION_UP) return true
+        val player = findLinkedScreenAt(view, event.x, event.y)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> linkedTapPlayer = player
+            MotionEvent.ACTION_UP -> {
+                // The pad can sit on top of the screens (landscape), so a touch that pressed it is no tap.
+                val padPressed = lastVirtualInputAt >= event.downTime - VIRTUAL_INPUT_TAP_WINDOW_MS
+                if (player != null && player == linkedTapPlayer && !padPressed) selectLinkPlayer(player)
+                linkedTapPlayer = null
+            }
+            MotionEvent.ACTION_CANCEL -> linkedTapPlayer = null
+        }
+        return true
+    }
+
+    /** The player whose screen is at ([x], [y]), or null outside both screens. */
+    private fun findLinkedScreenAt(
+        view: GLRetroView,
+        x: Float,
+        y: Float,
+    ): Int? {
         val area = view.viewport
         val areaLeft = view.width * area.left
         val areaTop = view.height * area.top
         val areaWidth = view.width * area.width()
         val areaHeight = view.height * area.height()
-        val player =
-            if (LocalLink.isStacked(systemCoreConfig)) {
-                // Stacked screens (160x288), aligned inside the area like any other game.
-                val screensHeight = minOf(areaHeight, areaWidth * LINKED_SCREENS_ASPECT)
-                val screensTop =
-                    when (linkedViewportAlignment) {
-                        ViewportAlignment.TOP -> areaTop
-                        ViewportAlignment.BOTTOM -> areaTop + areaHeight - screensHeight
-                        else -> areaTop + (areaHeight - screensHeight) / 2f
-                    }
-                if (event.y < screensTop + screensHeight / 2f) 0 else 1
-            } else {
-                if (event.x < areaLeft + areaWidth / 2f) 0 else 1
+
+        // Both screens together are 160x288 when stacked and 320x144 side by side, fitted in the area,
+        // centered horizontally and aligned vertically like any other game.
+        val stacked = LocalLink.isStacked(systemCoreConfig)
+        val aspect = if (stacked) LINKED_SCREENS_STACKED_ASPECT else LINKED_SCREENS_SIDE_BY_SIDE_ASPECT
+        val screensWidth = minOf(areaWidth, areaHeight * aspect)
+        val screensHeight = screensWidth / aspect
+        val screensLeft = areaLeft + (areaWidth - screensWidth) / 2f
+        val screensTop =
+            when (linkedViewportAlignment) {
+                ViewportAlignment.TOP -> areaTop
+                ViewportAlignment.BOTTOM -> areaTop + areaHeight - screensHeight
+                else -> areaTop + (areaHeight - screensHeight) / 2f
             }
-        selectLinkPlayer(player)
-        return true
+
+        val insideScreens =
+            x >= screensLeft && x <= screensLeft + screensWidth && y >= screensTop && y <= screensTop + screensHeight
+        if (!insideScreens) return null
+
+        return if (stacked) {
+            if (y < screensTop + screensHeight / 2f) 0 else 1
+        } else {
+            if (x < screensLeft + screensWidth / 2f) 0 else 1
+        }
     }
 
     private fun buildRetroViewData(
@@ -369,7 +407,9 @@ class GameViewModelRetroGameView(
     }
 
     companion object {
-        private const val LINKED_SCREENS_ASPECT = 288f / 160f
+        private const val VIRTUAL_INPUT_TAP_WINDOW_MS = 200L
+        private const val LINKED_SCREENS_STACKED_ASPECT = 160f / 288f
+        private const val LINKED_SCREENS_SIDE_BY_SIDE_ASPECT = 320f / 144f
     }
 
     private fun printRetroVariables(retroGameView: GLRetroView) {
