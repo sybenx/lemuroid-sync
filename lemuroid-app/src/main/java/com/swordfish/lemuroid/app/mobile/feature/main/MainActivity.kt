@@ -50,7 +50,6 @@ import com.swordfish.lemuroid.app.mobile.feature.shortcuts.ShortcutsGenerator
 import com.swordfish.lemuroid.app.mobile.feature.systems.MetaSystemsScreen
 import com.swordfish.lemuroid.app.mobile.feature.systems.MetaSystemsViewModel
 import com.swordfish.lemuroid.app.mobile.shared.compose.ui.AppTheme
-import com.swordfish.lemuroid.app.mobile.feature.link.LinkCableActivity
 import com.swordfish.lemuroid.app.shared.GameInteractor
 import com.swordfish.lemuroid.app.shared.game.BaseGameActivity
 import com.swordfish.lemuroid.app.shared.game.GameLauncher
@@ -408,7 +407,6 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
 
         when (requestCode) {
             BaseGameActivity.REQUEST_PLAY_GAME -> {
-                relaunchLinkedGame(resultCode, data)
                 GlobalScope.safeLaunch {
                     gameLaunchTaskHandler.handleGameFinish(
                         true,
@@ -418,20 +416,6 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                     )
                 }
             }
-        }
-    }
-
-    /** lemuroid-sync: a link picked in the game's pause menu starts once that game has closed. */
-    private fun relaunchLinkedGame(
-        resultCode: Int,
-        data: Intent?,
-    ) {
-        if (resultCode != RESULT_OK || data == null) return
-        val link = data.serializable<LinkCableActivity.Result>(BaseGameActivity.PLAY_GAME_RESULT_RELAUNCH_LINKED) ?: return
-        val game = data.serializable<Game>(BaseGameActivity.PLAY_GAME_RESULT_GAME) ?: return
-        when (link) {
-            is LinkCableActivity.Result.WithGame -> gameInteractor.onGameLink(game, link.game)
-            is LinkCableActivity.Result.WithFriend -> gameInteractor.onGameNetLink(game, link.connection)
         }
     }
 

@@ -57,9 +57,10 @@ class GameLauncher(
         game: Game,
         linkedGame: Game,
         leanback: Boolean,
+        onFailed: () -> Unit = {},
     ): Boolean {
         val portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-        return launchLinkAsync(activity, LocalLink.coreConfig(game, portrait)) { coreConfig ->
+        return launchLinkAsync(activity, LocalLink.coreConfig(game, portrait), onFailed) { coreConfig ->
             BaseGameActivity.launchGame(activity, coreConfig, game, false, leanback, linkedGame = linkedGame)
         }
     }
@@ -70,10 +71,11 @@ class GameLauncher(
         game: Game,
         connection: GameLink.Connection,
         leanback: Boolean,
+        onFailed: () -> Unit = {},
     ): Boolean {
         val isHost = connection is GameLink.Connection.Host || connection is GameLink.Connection.Online && connection.isHost
         val player = if (isHost) 0 else 1
-        return launchLinkAsync(activity, LocalLink.coreConfig(game, false, player)) { coreConfig ->
+        return launchLinkAsync(activity, LocalLink.coreConfig(game, false, player), onFailed) { coreConfig ->
             BaseGameActivity.launchGame(activity, coreConfig, game, false, leanback, netLink = connection)
         }
     }
@@ -82,12 +84,16 @@ class GameLauncher(
     private fun launchLinkAsync(
         activity: Activity,
         coreConfig: SystemCoreConfig,
+        onFailed: () -> Unit,
         launch: (SystemCoreConfig) -> Unit,
     ): Boolean {
         GlobalScope.launch {
             // Linking from a game's pause menu starts right after that game closed: give its process a moment.
             if (!waitForGameProcess(activity)) {
-                withContext(Dispatchers.Main) { activity.displayToast(R.string.game_process_another_game_running) }
+                withContext(Dispatchers.Main) {
+                    activity.displayToast(R.string.game_process_another_game_running)
+                    onFailed()
+                }
                 return@launch
             }
             val coreAvailable =
@@ -95,7 +101,10 @@ class GameLauncher(
                     .onFailure { Timber.e(it, "Unable to download the link cable core") }
                     .isSuccess
             if (!coreAvailable) {
-                withContext(Dispatchers.Main) { activity.displayToast(R.string.game_link_local_core_failed) }
+                withContext(Dispatchers.Main) {
+                    activity.displayToast(R.string.game_link_local_core_failed)
+                    onFailed()
+                }
                 return@launch
             }
             gameLaunchTaskHandler.handleGameStart(activity.applicationContext)

@@ -93,7 +93,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
     private var finishTriggered = false
     private var gameLink: GameLink.Connection = GameLink.Connection.Unplugged
 
-    /** lemuroid-sync: a link picked in the pause menu, which the library starts once this game is closed. */
+    /** lemuroid-sync: a link picked in the pause menu, started once this game has saved and closed. */
     private var relaunchLinked: LinkCableActivity.Result? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -324,8 +324,10 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 putExtra(PLAY_GAME_RESULT_SESSION_DURATION, System.currentTimeMillis() - startGameTime)
                 putExtra(PLAY_GAME_RESULT_GAME, intent.getSerializableExtra(EXTRA_GAME))
                 putExtra(PLAY_GAME_RESULT_LEANBACK, intent.getBooleanExtra(EXTRA_LEANBACK, false))
-                relaunchLinked?.let { putExtra(PLAY_GAME_RESULT_RELAUNCH_LINKED, it) }
             }
+
+        // A link picked in the pause menu starts from the main process, whoever opened this game.
+        relaunchLinked?.let { startActivity(LinkRelaunchActivity.intent(this, game, it)) }
 
         setResult(RESULT_OK, resultIntent)
         finishAndExitProcess()
@@ -426,7 +428,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 baseGameScreenViewModel.requestFinish()
             }
             data?.serializable<LinkCableActivity.Result>(GameMenuContract.RESULT_RELAUNCH_LINKED)?.let {
-                // Save and close like Quit; the library then starts the link.
+                // Save and close like Quit; LinkRelaunchActivity then starts the link.
                 relaunchLinked = it
                 baseGameScreenViewModel.requestFinish()
             }
@@ -481,7 +483,6 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         const val REQUEST_PLAY_GAME = 1001
         const val PLAY_GAME_RESULT_SESSION_DURATION = "PLAY_GAME_RESULT_SESSION_DURATION"
         const val PLAY_GAME_RESULT_GAME = "PLAY_GAME_RESULT_GAME"
-        const val PLAY_GAME_RESULT_RELAUNCH_LINKED = "PLAY_GAME_RESULT_RELAUNCH_LINKED"
         const val PLAY_GAME_RESULT_LEANBACK = "PLAY_GAME_RESULT_LEANBACK"
         const val PLAY_GAME_RESULT_ERROR = "PLAY_GAME_RESULT_ERROR"
 

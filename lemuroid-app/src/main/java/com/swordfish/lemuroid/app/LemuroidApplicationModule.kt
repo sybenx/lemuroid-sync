@@ -33,6 +33,7 @@ import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
 import com.swordfish.lemuroid.app.mobile.feature.shortcuts.ShortcutsGenerator
 import com.swordfish.lemuroid.app.shared.game.ExternalGameLauncherActivity
 import com.swordfish.lemuroid.app.shared.game.GameLauncher
+import com.swordfish.lemuroid.app.shared.game.LinkRelaunchActivity
 import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.app.shared.main.GameLaunchTaskHandler
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
@@ -104,6 +105,9 @@ abstract class LemuroidApplicationModule {
 
     @ContributesAndroidInjector
     abstract fun linkCableActivity(): LinkCableActivity
+
+    @ContributesAndroidInjector
+    abstract fun linkRelaunchActivity(): LinkRelaunchActivity
 
     @PerActivity
     @ContributesAndroidInjector
