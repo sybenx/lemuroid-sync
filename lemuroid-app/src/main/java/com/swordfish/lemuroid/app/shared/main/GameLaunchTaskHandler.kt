@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import com.swordfish.lemuroid.R
+import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
 import com.swordfish.lemuroid.app.shared.game.BaseGameActivity
 import com.swordfish.lemuroid.app.shared.gamecrash.GameCrashActivity
 import com.swordfish.lemuroid.app.shared.savesync.SaveSyncWork
@@ -11,6 +12,7 @@ import com.swordfish.lemuroid.app.shared.storage.cache.CacheCleanerWork
 import com.swordfish.lemuroid.ext.feature.review.ReviewManager
 import com.swordfish.lemuroid.lib.library.db.RetrogradeDatabase
 import com.swordfish.lemuroid.lib.library.db.entity.Game
+import com.swordfish.lemuroid.lib.library.findByName
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import kotlinx.coroutines.delay
 
@@ -18,9 +20,20 @@ class GameLaunchTaskHandler(
     private val reviewManager: ReviewManager,
     private val retrogradeDb: RetrogradeDatabase,
     private val saveSyncManager: SaveSyncManager,
+    private val settingsManager: SettingsManager,
 ) {
-    fun handleGameStart(context: Context) {
+    suspend fun handleGameStart(context: Context) {
         cancelBackgroundWork(context)
+        syncLocalSaves()
+    }
+
+    /** Local syncs are cheap: bring in saves from other devices before the game reads its own. */
+    private suspend fun syncLocalSaves() {
+        if (saveSyncManager.requiresNetwork() || !saveSyncManager.isConfigured()) return
+        if (!settingsManager.syncSaves() || !settingsManager.autoSaveSync()) return
+
+        val cores = settingsManager.syncStatesCores().mapNotNull { findByName(it) }.toSet()
+        saveSyncManager.sync(cores)
     }
 
     suspend fun handleGameFinish(

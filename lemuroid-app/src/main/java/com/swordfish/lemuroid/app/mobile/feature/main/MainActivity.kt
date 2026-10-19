@@ -56,6 +56,7 @@ import com.swordfish.lemuroid.app.shared.game.GameLauncher
 import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
 import com.swordfish.lemuroid.app.shared.main.BusyActivity
 import com.swordfish.lemuroid.app.shared.main.GameLaunchTaskHandler
+import com.swordfish.lemuroid.app.shared.savesync.SaveSyncWork
 import com.swordfish.lemuroid.app.shared.settings.SettingsInteractor
 import com.swordfish.lemuroid.common.coroutines.safeLaunch
 import com.swordfish.lemuroid.ext.feature.review.ReviewManager
@@ -123,6 +124,14 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
         setContent {
             val navController = rememberNavController()
             MainScreen(navController)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Local syncs are cheap, so pick up saves from other devices whenever the app comes back.
+        if (!saveSyncManager.requiresNetwork()) {
+            SaveSyncWork.enqueueLocalAutoWork(applicationContext)
         }
     }
 

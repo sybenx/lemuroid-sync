@@ -106,6 +106,19 @@ class SaveSyncWork(context: Context, workerParams: WorkerParameters) :
             )
         }
 
+        /** Syncs a local provider once, right away. Runs only if auto sync is enabled. */
+        fun enqueueLocalAutoWork(applicationContext: Context) {
+            val inputData: Data = workDataOf(IS_AUTO to true)
+
+            WorkManager.getInstance(applicationContext).enqueueUniqueWork(
+                UNIQUE_WORK_ID,
+                ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequestBuilder<SaveSyncWork>()
+                    .setInputData(inputData)
+                    .build(),
+            )
+        }
+
         fun enqueueAutoWork(
             applicationContext: Context,
             delayMinutes: Long = 0,
