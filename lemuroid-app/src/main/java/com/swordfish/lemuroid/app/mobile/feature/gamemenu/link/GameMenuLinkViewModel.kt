@@ -119,7 +119,9 @@ class GameMenuLinkViewModel(
                 .onFailure { Timber.e(it, "Unable to start Link Cable discovery") }
         }
         viewModelScope.launch {
-            nearby.invites.collect { invite -> showIncoming(invite) }
+            nearby.invites.collect { invite ->
+                if (invite.autoAccepted) acceptCrossedInvite(invite) else showIncoming(invite)
+            }
         }
     }
 
@@ -145,7 +147,14 @@ class GameMenuLinkViewModel(
     private fun handleRelayEvent(event: LinkRelay.Event) {
         when (event) {
             is LinkRelay.Event.Invite -> {
-                if (uiState.value.incoming != null || uiState.value.outgoing is Outgoing.Waiting) {
+                val outgoing = uiState.value.outgoing
+                if (outgoing is Outgoing.Waiting && outgoing.deviceId == event.from.deviceId) {
+                    // Both invited each other at once: the smaller device id accepts, the other waits for
+                    // that answer to its own invite. The session then completes this device's waiting invite.
+                    if (deviceId < event.from.deviceId) relay.answer(event.from.deviceId, true)
+                    return
+                }
+                if (uiState.value.incoming != null || outgoing is Outgoing.Waiting) {
                     relay.answer(event.from.deviceId, false)
                     return
                 }
@@ -186,6 +195,12 @@ class GameMenuLinkViewModel(
                 uiState.update { it.copy(code = null) }
             }
         }
+    }
+
+    private fun acceptCrossedInvite(invite: IncomingInvite) {
+        inviteJob?.cancel()
+        remember(invite.fromDeviceId, invite.from, invite.fromAddresses)
+        resultsChannel.trySend(GameLink.Connection.Host(invite.from))
     }
 
     private fun showIncoming(invite: IncomingInvite) {

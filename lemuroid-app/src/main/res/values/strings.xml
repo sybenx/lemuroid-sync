@@ -278,6 +278,17 @@
     <string name="game_link_toast_unplugged">Link cable unplugged</string>
     <string name="game_context_menu_link">Link Cable</string>
     <string name="game_link_friends">Friends</string>
+    <string name="game_link_menu_subtitle">With your other games or a friend</string>
+    <string name="game_link_tab_games">My games</string>
+    <string name="game_link_tab_friends">Friends</string>
+    <string name="game_link_games_hint">Both games run here side by side. L or R, or a tap on a screen, switches which Game Boy you control.</string>
+    <string name="game_link_hint_trade_battle">Can trade and battle</string>
+    <string name="game_link_hint_time_capsule">Can trade through the Time Capsule</string>
+    <string name="game_link_save_first">Save in the game first. Linking restarts %1$s with the cable plugged in.</string>
+    <string name="game_link_restart_warning">%1$s closes and starts again, linked. Anything you haven\'t saved in the game is lost.</string>
+    <string name="game_link_confirm_title">Link with %1$s?</string>
+    <string name="game_link_confirm">Link</string>
+    <string name="game_link_invite_send">Invite</string>
     <string name="game_link_friends_empty">Players you link with are remembered here, so you can link again from anywhere.</string>
     <string name="game_link_friends_offline">Can\'t reach the link server, so only nearby players can link right now.</string>
     <string name="game_link_friend_online">Online</string>

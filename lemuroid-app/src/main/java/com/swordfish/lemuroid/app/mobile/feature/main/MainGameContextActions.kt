@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Divider
@@ -52,7 +51,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -84,17 +82,20 @@ fun MainGameContextActions(
     onClearCustomName: (Game) -> Unit,
     onSetCustomCoverUri: (Game, String) -> Unit,
     onClearCustomCoverUri: (Game) -> Unit,
-    findLinkPartners: suspend (Game) -> List<Game>,
     onGameLink: (Game, Game) -> Unit,
     onGameNetLink: (Game, GameLink.Connection) -> Unit,
 ) {
-    // Outside the sheet, which is gone by the time the link screen returns.
-    var netLinkGame by rememberSaveable { mutableStateOf<Game?>(null) }
+    // Outside the sheet, which is gone by the time the Link Cable page returns.
+    var linkingGame by rememberSaveable { mutableStateOf<Game?>(null) }
     val linkCableLauncher =
-        rememberLauncherForActivityResult(LinkCableActivity.Contract()) { connection ->
-            val game = netLinkGame
-            netLinkGame = null
-            if (connection != null && game != null) onGameNetLink(game, connection)
+        rememberLauncherForActivityResult(LinkCableActivity.Contract()) { result ->
+            val game = linkingGame
+            linkingGame = null
+            when {
+                game == null -> Unit
+                result is LinkCableActivity.Result.WithGame -> onGameLink(game, result.game)
+                result is LinkCableActivity.Result.WithFriend -> onGameNetLink(game, result.connection)
+            }
         }
 
     val modalSheetState = rememberModalBottomSheetState(true)
@@ -125,11 +126,9 @@ fun MainGameContextActions(
                 onClearCustomName = onClearCustomName,
                 onSetCustomCoverUri = onSetCustomCoverUri,
                 onClearCustomCoverUri = onClearCustomCoverUri,
-                findLinkPartners = findLinkPartners,
-                onGameLink = onGameLink,
-                onNearbyLink = { game ->
-                    netLinkGame = game
-                    linkCableLauncher.launch(game.customName ?: game.title)
+                onLinkCable = { game ->
+                    linkingGame = game
+                    linkCableLauncher.launch(LinkCableActivity.Request(game, fromGame = false))
                 },
             )
         }
@@ -149,13 +148,10 @@ private fun ContextActionContent(
     onClearCustomName: (Game) -> Unit,
     onSetCustomCoverUri: (Game, String) -> Unit,
     onClearCustomCoverUri: (Game) -> Unit,
-    findLinkPartners: suspend (Game) -> List<Game>,
-    onGameLink: (Game, Game) -> Unit,
-    onNearbyLink: (Game) -> Unit,
+    onLinkCable: (Game) -> Unit,
 ) {
     val context = LocalContext.current
     var showCustomNameDialog by remember { mutableStateOf(false) }
-    var showLinkDialog by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -204,7 +200,10 @@ private fun ContextActionContent(
             ContextActionEntry(
                 label = stringResource(id = R.string.game_context_menu_link),
                 icon = Icons.Default.Cable,
-                onClick = { showLinkDialog = true },
+                onClick = {
+                    onLinkCable(selectedGame)
+                    selectedGameState.value = null
+                },
             )
         }
 
@@ -278,24 +277,6 @@ private fun ContextActionContent(
         }
     }
 
-    if (showLinkDialog) {
-        LinkPartnerDialog(
-            game = selectedGame,
-            findLinkPartners = findLinkPartners,
-            onNearby = {
-                showLinkDialog = false
-                onNearbyLink(selectedGame)
-                selectedGameState.value = null
-            },
-            onDismiss = { showLinkDialog = false },
-            onPick = { partner ->
-                showLinkDialog = false
-                onGameLink(selectedGame, partner)
-                selectedGameState.value = null
-            },
-        )
-    }
-
     if (showCustomNameDialog) {
         CustomNameDialog(
             initialName = selectedGame.fileName,
@@ -306,87 +287,6 @@ private fun ContextActionContent(
                 selectedGameState.value = null
             },
         )
-    }
-}
-
-/** lemuroid-sync: picks the second game for a link cable session on this device. */
-@Composable
-private fun LinkPartnerDialog(
-    game: Game,
-    findLinkPartners: suspend (Game) -> List<Game>,
-    onNearby: () -> Unit,
-    onDismiss: () -> Unit,
-    onPick: (Game) -> Unit,
-) {
-    val partners by produceState<List<Game>?>(null, game) { value = findLinkPartners(game) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.game_link_local_pick_title, game.customName ?: game.title)) },
-        text = {
-            Column {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onNearby)
-                            .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        modifier = Modifier.width(40.dp),
-                        imageVector = Icons.Default.Wifi,
-                        contentDescription = null,
-                    )
-                    Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text(stringResource(R.string.game_link_nearby_player))
-                        Text(
-                            text = stringResource(R.string.game_link_nearby_player_description),
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
-                val loadedPartners = partners
-                when {
-                    loadedPartners == null -> Unit
-                    loadedPartners.isEmpty() -> Text(stringResource(R.string.game_link_local_pick_empty))
-                    else -> LinkPartnerList(loadedPartners, onPick)
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
-        },
-    )
-}
-
-@Composable
-private fun LinkPartnerList(
-    partners: List<Game>,
-    onPick: (Game) -> Unit,
-) {
-    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-        partners.forEach { partner ->
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onPick(partner) }
-                        .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                LemuroidSmallGameImage(
-                    modifier = Modifier.width(40.dp).height(40.dp),
-                    game = partner,
-                )
-                LemuroidGameTexts(
-                    modifier = Modifier.weight(1f).padding(start = 12.dp),
-                    game = partner,
-                )
-            }
-        }
     }
 }
 

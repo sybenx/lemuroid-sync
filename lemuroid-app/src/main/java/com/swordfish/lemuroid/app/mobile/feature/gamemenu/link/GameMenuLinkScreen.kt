@@ -60,17 +60,28 @@ import com.swordfish.lemuroid.app.shared.link.LinkCreature
 import com.swordfish.lemuroid.app.shared.link.LinkIdentity
 import com.swordfish.lemuroid.app.shared.link.LinkPeer
 
+/**
+ * @param restartWarning when set, linking closes the running game: inviting asks first, and an invite
+ * says so before it is accepted.
+ */
 @Composable
 fun GameMenuLinkScreen(
     viewModel: GameMenuLinkViewModel,
     onLinkChanged: (GameLink.Connection) -> Unit,
+    restartWarning: String? = null,
 ) {
-    LaunchedEffect(viewModel) {
-        viewModel.results.collect { onLinkChanged(it) }
-    }
+    GameMenuLinkInvites(viewModel, onLinkChanged, restartWarning)
 
     val state by viewModel.state.collectAsState()
     val linkedPeer = viewModel.connection.peer
+    var confirming by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+
+    fun confirmFirst(
+        name: String,
+        invite: () -> Unit,
+    ) {
+        if (restartWarning == null) invite() else confirming = name to invite
+    }
 
     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         if (linkedPeer != null) {
@@ -82,9 +93,17 @@ fun GameMenuLinkScreen(
                 onIdentityChanged = viewModel::setIdentity,
             )
             Divider(modifier = Modifier.fillMaxWidth())
-            NearbyList(state, onPeerClicked = viewModel::invite)
+            NearbyList(state, onPeerClicked = { peer -> confirmFirst(peer.identity.displayName) { viewModel.invite(peer) } })
             Divider(modifier = Modifier.fillMaxWidth())
-            FriendsList(state, onFriendClicked = viewModel::invite, onForget = viewModel::forget)
+            FriendsList(
+                state,
+                onFriendClicked = { friend ->
+                    if (friend.online != null || friend.isNearby) {
+                        confirmFirst(friend.friend.identity.displayName) { viewModel.invite(friend) }
+                    }
+                },
+                onForget = viewModel::forget,
+            )
             AddFriendCard(
                 code = state.code,
                 onShowCode = viewModel::showMyCode,
@@ -94,6 +113,39 @@ fun GameMenuLinkScreen(
         }
     }
 
+    confirming?.let { (name, invite) ->
+        AlertDialog(
+            onDismissRequest = { confirming = null },
+            title = { Text(stringResource(R.string.game_link_confirm_title, name)) },
+            text = { Text(restartWarning ?: "") },
+            confirmButton = {
+                Button(onClick = {
+                    confirming = null
+                    invite()
+                }) { Text(stringResource(R.string.game_link_invite_send)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirming = null }) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
+    }
+}
+
+/**
+ * Delivers accepted links and shows incoming invites. Part of [GameMenuLinkScreen], and shown on its own
+ * wherever players should still get invites while the screen shows something else.
+ */
+@Composable
+fun GameMenuLinkInvites(
+    viewModel: GameMenuLinkViewModel,
+    onLinkChanged: (GameLink.Connection) -> Unit,
+    restartWarning: String? = null,
+) {
+    LaunchedEffect(viewModel) {
+        viewModel.results.collect { onLinkChanged(it) }
+    }
+
+    val state by viewModel.state.collectAsState()
     state.incoming?.let { invite ->
         AlertDialog(
             onDismissRequest = { viewModel.answerInvite(false) },
@@ -105,8 +157,11 @@ fun GameMenuLinkScreen(
                 )
             },
             text = {
-                if (invite.gameTitle.isNotBlank()) {
-                    Text(stringResource(R.string.game_link_invite_game, invite.gameTitle))
+                Column {
+                    if (invite.gameTitle.isNotBlank()) {
+                        Text(stringResource(R.string.game_link_invite_game, invite.gameTitle))
+                    }
+                    restartWarning?.let { Text(text = it, modifier = Modifier.padding(top = 8.dp)) }
                 }
             },
             confirmButton = {

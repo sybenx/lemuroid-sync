@@ -23,6 +23,7 @@ import com.swordfish.lemuroid.app.shared.coreoptions.CoreOption
 import com.swordfish.lemuroid.app.shared.coreoptions.LemuroidCoreOption
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelSideEffects
 import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
+import com.swordfish.lemuroid.app.mobile.feature.link.LinkCableActivity
 import com.swordfish.lemuroid.app.shared.link.GameLink
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.ControllerConfigsManager
@@ -91,6 +92,9 @@ abstract class BaseGameActivity : ImmersiveActivity() {
     private val startGameTime = System.currentTimeMillis()
     private var finishTriggered = false
     private var gameLink: GameLink.Connection = GameLink.Connection.Unplugged
+
+    /** lemuroid-sync: a link picked in the pause menu, which the library starts once this game is closed. */
+    private var relaunchLinked: LinkCableActivity.Result? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -320,6 +324,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 putExtra(PLAY_GAME_RESULT_SESSION_DURATION, System.currentTimeMillis() - startGameTime)
                 putExtra(PLAY_GAME_RESULT_GAME, intent.getSerializableExtra(EXTRA_GAME))
                 putExtra(PLAY_GAME_RESULT_LEANBACK, intent.getBooleanExtra(EXTRA_LEANBACK, false))
+                relaunchLinked?.let { putExtra(PLAY_GAME_RESULT_RELAUNCH_LINKED, it) }
             }
 
         setResult(RESULT_OK, resultIntent)
@@ -420,6 +425,11 @@ abstract class BaseGameActivity : ImmersiveActivity() {
             if (data?.getBooleanExtra(GameMenuContract.RESULT_QUIT, false) == true) {
                 baseGameScreenViewModel.requestFinish()
             }
+            data?.serializable<LinkCableActivity.Result>(GameMenuContract.RESULT_RELAUNCH_LINKED)?.let {
+                // Save and close like Quit; the library then starts the link.
+                relaunchLinked = it
+                baseGameScreenViewModel.requestFinish()
+            }
             if (data?.hasExtra(GameMenuContract.RESULT_CHANGE_DISK) == true) {
                 val index = data.getIntExtra(GameMenuContract.RESULT_CHANGE_DISK, 0)
                 baseGameScreenViewModel.retroGameView.retroGameView?.changeDisk(index)
@@ -471,6 +481,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         const val REQUEST_PLAY_GAME = 1001
         const val PLAY_GAME_RESULT_SESSION_DURATION = "PLAY_GAME_RESULT_SESSION_DURATION"
         const val PLAY_GAME_RESULT_GAME = "PLAY_GAME_RESULT_GAME"
+        const val PLAY_GAME_RESULT_RELAUNCH_LINKED = "PLAY_GAME_RESULT_RELAUNCH_LINKED"
         const val PLAY_GAME_RESULT_LEANBACK = "PLAY_GAME_RESULT_LEANBACK"
         const val PLAY_GAME_RESULT_ERROR = "PLAY_GAME_RESULT_ERROR"
 

@@ -17,6 +17,7 @@ import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -83,12 +84,12 @@ class GameLauncher(
         coreConfig: SystemCoreConfig,
         launch: (SystemCoreConfig) -> Unit,
     ): Boolean {
-        if (GameProcessLock.isHeldByAnotherProcess(activity.applicationContext)) {
-            activity.displayToast(R.string.game_process_another_game_running)
-            return false
-        }
-
         GlobalScope.launch {
+            // Linking from a game's pause menu starts right after that game closed: give its process a moment.
+            if (!waitForGameProcess(activity)) {
+                withContext(Dispatchers.Main) { activity.displayToast(R.string.game_process_another_game_running) }
+                return@launch
+            }
             val coreAvailable =
                 runCatching { coreUpdater.downloadCores(activity.applicationContext, listOf(coreConfig.coreID)) }
                     .onFailure { Timber.e(it, "Unable to download the link cable core") }
@@ -102,6 +103,14 @@ class GameLauncher(
         }
 
         return true
+    }
+
+    private suspend fun waitForGameProcess(activity: Activity): Boolean {
+        repeat(GAME_PROCESS_WAIT_STEPS) {
+            if (!GameProcessLock.isHeldByAnotherProcess(activity.applicationContext)) return true
+            delay(GAME_PROCESS_WAIT_STEP_MS)
+        }
+        return false
     }
 
     private suspend fun startGame(
@@ -136,5 +145,10 @@ class GameLauncher(
             }
             .setCancelable(false)
             .show()
+    }
+
+    companion object {
+        private const val GAME_PROCESS_WAIT_STEPS = 50
+        private const val GAME_PROCESS_WAIT_STEP_MS = 100L
     }
 }

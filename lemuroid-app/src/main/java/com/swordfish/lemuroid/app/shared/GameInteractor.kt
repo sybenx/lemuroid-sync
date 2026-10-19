@@ -72,12 +72,6 @@ class GameInteractor(
         gameLauncher.launchNetLinkAsync(activity.activity(), game, connection, useLeanback)
     }
 
-    /** Games that [game] can be linked with on this device, or none if it has no link cable. */
-    suspend fun findLinkPartners(game: Game): List<Game> {
-        if (!LocalLink.isSupported(game)) return emptyList()
-        return retrogradeDb.gameDao().asyncSelectBySystems(LocalLink.SYSTEMS).filter { it.id != game.id }
-    }
-
     fun onFavoriteToggle(
         game: Game,
         isFavorite: Boolean,

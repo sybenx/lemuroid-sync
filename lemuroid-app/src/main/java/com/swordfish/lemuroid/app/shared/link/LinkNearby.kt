@@ -55,6 +55,8 @@ class IncomingInvite internal constructor(
     internal val answer: CompletableDeferred<Boolean>,
     val fromDeviceId: String = "",
     val fromAddresses: List<String> = emptyList(),
+    /** Both players invited each other at once, and this one was picked to accept: no need to ask. */
+    val autoAccepted: Boolean = false,
 ) {
     /** Becomes true when the other player gives up before this player answers. */
     val cancelled = MutableStateFlow(false)
@@ -104,6 +106,10 @@ class LinkNearby(
     @Volatile
     private var busy = false
 
+    /** The player this device is inviting right now, to spot two invites crossing. */
+    @Volatile
+    private var invitingDeviceId: String? = null
+
     @Volatile
     private var closed = false
 
@@ -128,6 +134,7 @@ class LinkNearby(
         withContext(Dispatchers.IO) {
             val me = identity ?: return@withContext InviteResult.Failed
             busy = true
+            invitingDeviceId = peer.deviceId
             try {
                 Socket().use { socket ->
                     socket.connect(InetSocketAddress(peer.address, peer.port), CONNECT_TIMEOUT_MS)
@@ -157,6 +164,7 @@ class LinkNearby(
                 InviteResult.Failed
             } finally {
                 busy = false
+                invitingDeviceId = null
             }
         }
 
@@ -183,6 +191,28 @@ class LinkNearby(
                 val from = LinkIdentity.fromIds(message.optString("color"), message.optString("creature"))
                 if (message.optString("type") != "invite" || from == null) return
 
+                val fromId = message.optString("id")
+                if (busy && fromId.isNotEmpty() && fromId == invitingDeviceId) {
+                    // Both invited each other at once. One rule both sides agree on picks who accepts:
+                    // the smaller device id accepts the other's invite, the larger declines it and gets
+                    // its own invite accepted instead.
+                    if (deviceId < fromId) {
+                        val invite =
+                            IncomingInvite(
+                                from,
+                                message.optString("game"),
+                                CompletableDeferred(true),
+                                fromId,
+                                message.optJSONArray("addrs").toStrings(),
+                                autoAccepted = true,
+                            )
+                        invitesChannel.send(invite)
+                        writer.println(JSONObject().put("type", "accept").toString())
+                    } else {
+                        writer.println(JSONObject().put("type", "decline").toString())
+                    }
+                    return
+                }
                 if (busy) {
                     writer.println(JSONObject().put("type", "busy").toString())
                     return

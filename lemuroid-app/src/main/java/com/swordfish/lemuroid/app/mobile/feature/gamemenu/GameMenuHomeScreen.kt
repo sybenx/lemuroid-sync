@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cable
 import androidx.compose.material.icons.filled.Sensors
@@ -17,6 +18,9 @@ import androidx.navigation.NavController
 import com.alorma.compose.settings.storage.memory.rememberMemoryBooleanSettingState
 import com.alorma.compose.settings.storage.memory.rememberMemoryIntSettingState
 import com.swordfish.lemuroid.R
+import com.swordfish.lemuroid.app.mobile.feature.link.LinkCableActivity
+import com.swordfish.lemuroid.app.shared.link.LocalLink
+import com.swordfish.lemuroid.lib.library.CoreID
 import com.swordfish.lemuroid.app.mobile.feature.gamemenu.tilt.TiltConfigurationMenuEntry
 import com.swordfish.lemuroid.app.shared.GameMenuContract
 import com.swordfish.lemuroid.app.utils.android.settings.LemuroidSettingsList
@@ -30,6 +34,14 @@ fun GameMenuHomeScreen(
     gameMenuRequest: GameMenuActivity.GameMenuRequest,
     onResult: KFunction1<Intent.() -> Unit, Unit>,
 ) {
+    // lemuroid-sync: linking closes this game and starts it again with the cable plugged in.
+    val linkCableLauncher =
+        rememberLauncherForActivityResult(LinkCableActivity.Contract()) { result ->
+            result?.let { onResult { putExtra(GameMenuContract.RESULT_RELAUNCH_LINKED, it) } }
+        }
+    val canLink =
+        LocalLink.isSupported(gameMenuRequest.game) && gameMenuRequest.coreConfig.coreID != CoreID.TGBDUAL
+
     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         if (gameMenuRequest.coreConfig.statesSupported) {
             LemuroidSettingsMenuLink(
@@ -126,6 +138,20 @@ fun GameMenuHomeScreen(
                 onItemSelected = { index, _ ->
                     onResult { putExtra(GameMenuContract.RESULT_CHANGE_DISK, index) }
                 },
+            )
+        }
+
+        if (canLink) {
+            LemuroidSettingsMenuLink(
+                title = { Text(text = stringResource(id = R.string.game_context_menu_link)) },
+                subtitle = { Text(text = stringResource(id = R.string.game_link_menu_subtitle)) },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Cable,
+                        contentDescription = stringResource(id = R.string.game_context_menu_link),
+                    )
+                },
+                onClick = { linkCableLauncher.launch(LinkCableActivity.Request(gameMenuRequest.game, fromGame = true)) },
             )
         }
 
