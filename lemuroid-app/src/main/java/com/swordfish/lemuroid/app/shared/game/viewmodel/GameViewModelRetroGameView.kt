@@ -2,6 +2,8 @@ package com.swordfish.lemuroid.app.shared.game.viewmodel
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.SystemClock
 import android.view.MotionEvent
 import androidx.core.content.ContextCompat
@@ -13,6 +15,7 @@ import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.settings.SettingsManager
 import com.swordfish.lemuroid.app.shared.game.ShaderChooser
 import com.swordfish.lemuroid.app.shared.link.LocalLink
+import com.swordfish.lemuroid.app.shared.link.NetLink
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.HDModeQuality
 import com.swordfish.lemuroid.common.coroutines.MutableStateProperty
@@ -30,6 +33,8 @@ import com.swordfish.lemuroid.lib.storage.RomFiles
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
 import com.swordfish.libretrodroid.ImmersiveMode
+import com.swordfish.libretrodroid.LibretroDroid
+import com.swordfish.libretrodroid.NetplayConfig
 import com.swordfish.libretrodroid.Variable
 import com.swordfish.libretrodroid.ViewportAlignment
 import com.swordfish.libretrodroid.VirtualFile
@@ -46,6 +51,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.FileInputStream
 import kotlin.time.Duration.Companion.seconds
@@ -91,6 +97,7 @@ class GameViewModelRetroGameView(
         gameLoader: GameLoader,
         requestLoadSave: Boolean,
         linkedGame: Game? = null,
+        netLink: NetLink? = null,
     ) {
         val currentState = gameState.value
         if (currentState != GameState.Uninitialized) return
@@ -136,6 +143,15 @@ class GameViewModelRetroGameView(
             }
             .debounce(200)
             .collect { loadingState ->
+                val netSetup =
+                    if (loadingState is GameLoader.LoadingState.Ready && netLink != null) {
+                        gameState.value =
+                            GameState.Loading(appContext.getString(R.string.game_link_net_connecting, netLink.peerName))
+                        connectNetLink(netLink, loadingState.gameData) ?: return@collect
+                    } else {
+                        null
+                    }
+
                 gameState.value =
                     if (loadingState is GameLoader.LoadingState.Ready) {
                         Timber.i("Setting state to loaded")
@@ -152,6 +168,7 @@ class GameViewModelRetroGameView(
                                 enableRumble,
                                 enableMicrophone,
                                 enableImmersiveMode,
+                                netSetup,
                             )
                         GameState.Loaded(
                             gameData = loadingState.gameData,
@@ -183,8 +200,12 @@ class GameViewModelRetroGameView(
 
         if (currentState.gameData.linkedGame != null) {
             linkedPlayersView = result
-            linkedLoadedSaves = listOf(currentState.gameData.saveRAMData, currentState.gameData.linkedSaveRAMData)
             result.setOnTouchListener { _, event -> selectLinkPlayerAt(result, event) }
+        }
+
+        netLocalPlayer?.let { player ->
+            result.inputPortOverride = player
+            watchNetLink(result)
         }
 
         lifecycle.lifecycle.addObserver(result)
@@ -231,7 +252,35 @@ class GameViewModelRetroGameView(
 
     private var linkedLoadedSaves: List<ByteArray?> = listOf()
 
+    /** lemuroid-sync: set when the other Game Boy is on another device. */
+    private var netLink: NetLink? = null
+    private var netLocalPlayer: Int? = null
+    private var wifiLock: WifiManager.WifiLock? = null
+
+    /** This device's player when linked with another device, or null. */
+    fun getNetLocalPlayer(): Int? = netLocalPlayer
+
     fun isLinked(): Boolean = linkedPlayersView != null
+
+    /** Tells the player once the other device has left. The game goes on here with the other Game Boy idle. */
+    private fun watchNetLink(retroView: GLRetroView) {
+        scope.launch {
+            while (true) {
+                delay(1.seconds)
+                if (retroView.getNetplayStatus() == LibretroDroid.NETPLAY_STATUS_ENDED) {
+                    sideEffects.showToast(appContext.getString(R.string.game_link_net_ended, netLink?.peerName ?: ""))
+                    releaseNetLink()
+                    return@launch
+                }
+            }
+        }
+    }
+
+    private fun releaseNetLink() {
+        runCatching { wifiLock?.takeIf { it.isHeld }?.release() }
+        wifiLock = null
+        netLink?.close()
+    }
 
     /**
      * The core refuses a save larger than its save memory, and that game then starts blank. Writing its
@@ -325,19 +374,25 @@ class GameViewModelRetroGameView(
         requestRumble: Boolean,
         requestMicrophone: Boolean,
         enableImmersiveMode: Boolean,
+        netSetup: NetSetup? = null,
     ): GLRetroViewData {
         return GLRetroViewData(appContext).apply {
             coreFilePath = gameData.coreLibrary
 
             val linkedGameFiles = gameData.linkedGameFiles
-            if (linkedGameFiles != null) {
-                gameSpecialType = LocalLink.GAME_TYPE_LINK_2P
-                gameSpecialFilesBytes = listOf(readRomBytes(gameData.gameFiles), readRomBytes(linkedGameFiles))
-                memoryStates =
-                    buildMap {
-                        gameData.saveRAMData?.let { put(LocalLink.MEMORY_PLAYER_1_SAVE_RAM, it) }
-                        gameData.linkedSaveRAMData?.let { put(LocalLink.MEMORY_PLAYER_2_SAVE_RAM, it) }
-                    }
+            if (netSetup != null) {
+                // The host is player 1 on both devices.
+                val own = netSetup.ownRom to gameData.saveRAMData
+                val partner = netSetup.partner.rom to netSetup.partner.saveRAM
+                val players = if (netSetup.localPlayer == 0) listOf(own, partner) else listOf(partner, own)
+                setLinkedGames(players.map { it.first }, players.map { it.second })
+                netplay =
+                    NetplayConfig(netSetup.socketFd, netSetup.isHost, netSetup.localPlayer, NetLink.INPUT_DELAY_FRAMES)
+            } else if (linkedGameFiles != null) {
+                setLinkedGames(
+                    listOf(readRomBytes(gameData.gameFiles), readRomBytes(linkedGameFiles)),
+                    listOf(gameData.saveRAMData, gameData.linkedSaveRAMData),
+                )
             } else {
                 when (val gameFiles = gameData.gameFiles) {
                     is RomFiles.Standard -> {
@@ -375,6 +430,64 @@ class GameViewModelRetroGameView(
             enableMicrophone = requestMicrophone
             immersiveMode = buildImmersiveModeConfiguration(enableImmersiveMode)
         }
+    }
+
+    private fun GLRetroViewData.setLinkedGames(
+        roms: List<ByteArray>,
+        saves: List<ByteArray?>,
+    ) {
+        gameSpecialType = LocalLink.GAME_TYPE_LINK_2P
+        gameSpecialFilesBytes = roms
+        memoryStates =
+            buildMap {
+                saves[0]?.let { put(LocalLink.MEMORY_PLAYER_1_SAVE_RAM, it) }
+                saves[1]?.let { put(LocalLink.MEMORY_PLAYER_2_SAVE_RAM, it) }
+            }
+        linkedLoadedSaves = saves
+    }
+
+    /** A connected link to another device, with that player's game. */
+    class NetSetup(
+        val ownRom: ByteArray,
+        val partner: NetLink.Partner,
+        val socketFd: Int,
+        val isHost: Boolean,
+        val localPlayer: Int,
+    )
+
+    private suspend fun connectNetLink(
+        netLink: NetLink,
+        gameData: GameLoader.GameData,
+    ): NetSetup? {
+        acquireWifiLock()
+        this.netLink = netLink
+        return try {
+            val ownRom = withContext(Dispatchers.IO) { readRomBytes(gameData.gameFiles) }
+            val socket = netLink.connect()
+            val partner = netLink.exchange(socket, ownRom, gameData.saveRAMData, gameData.game.title)
+            netLocalPlayer = netLink.localPlayer
+            NetSetup(ownRom, partner, netLink.detach(socket), netLink.isHost, netLink.localPlayer)
+        } catch (e: Exception) {
+            Timber.e(e, "Unable to link with ${netLink.peerName}")
+            sideEffects.requestFailureFinish(appContext.getString(R.string.game_link_net_failed, netLink.peerName))
+            null
+        }
+    }
+
+    /** Wi-Fi power saving can hold packets for a long time, and every frame waits for the other device. */
+    @Suppress("DEPRECATION")
+    private fun acquireWifiLock() {
+        val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return
+        val mode =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+            } else {
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF
+            }
+        wifiLock =
+            runCatching { wifiManager.createWifiLock(mode, "lemuroid:link").apply { acquire() } }
+                .onFailure { Timber.w(it, "Unable to keep Wi-Fi awake") }
+                .getOrNull()
     }
 
     private fun readRomBytes(romFiles: RomFiles): ByteArray {
@@ -436,6 +549,11 @@ class GameViewModelRetroGameView(
         owner.launchOnState(Lifecycle.State.RESUMED) {
             initializeRumbleFlow()
         }
+    }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        releaseNetLink()
+        super.onDestroy(owner)
     }
 
     private suspend fun initializeCoreVariablesFlow() {

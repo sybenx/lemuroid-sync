@@ -101,6 +101,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         systemCoreConfig = intent.getSerializableExtra(EXTRA_SYSTEM_CORE_CONFIG) as SystemCoreConfig
         system = GameSystem.findById(game.systemId)
         val linkedGame = intent.getSerializableExtra(EXTRA_LINKED_GAME) as Game?
+        val netLink = intent.getSerializableExtra(EXTRA_NET_LINK) as GameLink.Connection?
 
         val viewModel by viewModels<BaseGameScreenViewModel> {
             BaseGameScreenViewModel.Factory(
@@ -118,6 +119,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                 coreVariablesManager,
                 rumbleManager,
                 linkedGame,
+                netLink,
             )
         }
 
@@ -145,6 +147,9 @@ abstract class BaseGameActivity : ImmersiveActivity() {
 
         if (linkedGame != null && savedInstanceState == null) {
             displayToast(getString(R.string.game_link_local_hint, linkedGame.title))
+        }
+        if (netLink?.peer != null && savedInstanceState == null) {
+            displayToast(getString(R.string.game_link_net_hint, netLink.peer!!.displayName))
         }
 
         onBackPressedDispatcher.addCallback(
@@ -461,6 +466,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
         private const val EXTRA_LEANBACK = "LEANBACK"
         private const val EXTRA_SYSTEM_CORE_CONFIG = "EXTRA_SYSTEM_CORE_CONFIG"
         private const val EXTRA_LINKED_GAME = "EXTRA_LINKED_GAME"
+        private const val EXTRA_NET_LINK = "EXTRA_NET_LINK"
 
         const val REQUEST_PLAY_GAME = 1001
         const val PLAY_GAME_RESULT_SESSION_DURATION = "PLAY_GAME_RESULT_SESSION_DURATION"
@@ -478,6 +484,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
             loadSave: Boolean,
             useLeanback: Boolean,
             linkedGame: Game? = null,
+            netLink: GameLink.Connection? = null,
         ) {
             val gameActivity =
                 if (useLeanback) {
@@ -492,6 +499,7 @@ abstract class BaseGameActivity : ImmersiveActivity() {
                     putExtra(EXTRA_LEANBACK, useLeanback)
                     putExtra(EXTRA_SYSTEM_CORE_CONFIG, systemCoreConfig)
                     linkedGame?.let { putExtra(EXTRA_LINKED_GAME, it) }
+                    netLink?.let { putExtra(EXTRA_NET_LINK, it) }
                 },
                 REQUEST_PLAY_GAME,
             )

@@ -5,11 +5,13 @@ import android.content.res.Configuration
 import androidx.appcompat.app.AlertDialog
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.shared.main.GameLaunchTaskHandler
+import com.swordfish.lemuroid.app.shared.link.GameLink
 import com.swordfish.lemuroid.app.shared.link.LocalLink
 import com.swordfish.lemuroid.common.displayToast
 import com.swordfish.lemuroid.lib.core.CoreUpdater
 import com.swordfish.lemuroid.lib.core.CoresSelection
 import com.swordfish.lemuroid.lib.library.GameSystem
+import com.swordfish.lemuroid.lib.library.SystemCoreConfig
 import com.swordfish.lemuroid.lib.library.db.entity.Game
 import com.swordfish.lemuroid.lib.savesync.SaveSyncManager
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -49,21 +51,43 @@ class GameLauncher(
     }
 
     /** lemuroid-sync: plays [game] linked by cable with [linkedGame], both on this device. */
-    @OptIn(DelicateCoroutinesApi::class)
     fun launchLinkedGamesAsync(
         activity: Activity,
         game: Game,
         linkedGame: Game,
         leanback: Boolean,
     ): Boolean {
+        val portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+        return launchLinkAsync(activity, LocalLink.coreConfig(game, portrait)) { coreConfig ->
+            BaseGameActivity.launchGame(activity, coreConfig, game, false, leanback, linkedGame = linkedGame)
+        }
+    }
+
+    /** lemuroid-sync: plays [game] linked by cable with a game on another device. */
+    fun launchNetLinkAsync(
+        activity: Activity,
+        game: Game,
+        connection: GameLink.Connection,
+        leanback: Boolean,
+    ): Boolean {
+        val player = if (connection is GameLink.Connection.Host) 0 else 1
+        return launchLinkAsync(activity, LocalLink.coreConfig(game, false, player)) { coreConfig ->
+            BaseGameActivity.launchGame(activity, coreConfig, game, false, leanback, netLink = connection)
+        }
+    }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun launchLinkAsync(
+        activity: Activity,
+        coreConfig: SystemCoreConfig,
+        launch: (SystemCoreConfig) -> Unit,
+    ): Boolean {
         if (GameProcessLock.isHeldByAnotherProcess(activity.applicationContext)) {
             activity.displayToast(R.string.game_process_another_game_running)
             return false
         }
 
-        val portrait = activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
         GlobalScope.launch {
-            val coreConfig = LocalLink.coreConfig(game, portrait)
             val coreAvailable =
                 runCatching { coreUpdater.downloadCores(activity.applicationContext, listOf(coreConfig.coreID)) }
                     .onFailure { Timber.e(it, "Unable to download the link cable core") }
@@ -73,7 +97,7 @@ class GameLauncher(
                 return@launch
             }
             gameLaunchTaskHandler.handleGameStart(activity.applicationContext)
-            BaseGameActivity.launchGame(activity, coreConfig, game, false, leanback, linkedGame)
+            launch(coreConfig)
         }
 
         return true

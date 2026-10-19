@@ -371,6 +371,7 @@ class MainActivity : RetrogradeComponentActivity(), BusyActivity {
                 onClearCustomCoverUri = { game -> gameInteractor.onClearCustomCoverUri(game) },
                 findLinkPartners = { gameInteractor.findLinkPartners(it) },
                 onGameLink = { game, linkedGame -> gameInteractor.onGameLink(game, linkedGame) },
+                onGameNetLink = { game, connection -> gameInteractor.onGameNetLink(game, connection) },
             )
 
             if (infoDialogDisplayed.value) {

@@ -75,6 +75,14 @@ class GameViewModelSaves(
 
     suspend fun captureSaveSnapshot(useEmulationThread: Boolean): SaveSnapshot? {
         val retroGameView = retroGameView.retroGameView ?: return null
+        val netPlayer = this.retroGameView.getNetLocalPlayer()
+        if (netPlayer != null) {
+            // The other Game Boy's save belongs to the other device, which writes it there.
+            val memoryId =
+                if (netPlayer == 0) LocalLink.MEMORY_PLAYER_1_SAVE_RAM else LocalLink.MEMORY_PLAYER_2_SAVE_RAM
+            val saveRAM = retroGameView.serializeMemory(memoryId, useEmulationThread)
+            return SaveSnapshot(saveRAM.takeIf { this.retroGameView.wasLinkedSaveRestored(netPlayer, it) } ?: ByteArray(0), null)
+        }
         if (linkedGame != null) {
             // Each linked Game Boy keeps its own save, and no state is written for the pair.
             val player1 = retroGameView.serializeMemory(LocalLink.MEMORY_PLAYER_1_SAVE_RAM, useEmulationThread)

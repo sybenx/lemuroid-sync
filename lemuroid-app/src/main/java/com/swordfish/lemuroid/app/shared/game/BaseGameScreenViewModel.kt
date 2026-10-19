@@ -20,6 +20,8 @@ import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelSideEffects
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelTilt
 import com.swordfish.lemuroid.app.shared.game.viewmodel.GameViewModelTouchControls
 import com.swordfish.lemuroid.app.shared.input.InputDeviceManager
+import com.swordfish.lemuroid.app.shared.link.GameLink
+import com.swordfish.lemuroid.app.shared.link.NetLink
 import com.swordfish.lemuroid.app.shared.rumble.RumbleManager
 import com.swordfish.lemuroid.app.shared.settings.ControllerConfigsManager
 import com.swordfish.lemuroid.app.shared.settings.HapticFeedbackMode
@@ -61,6 +63,7 @@ class BaseGameScreenViewModel(
     coreVariablesManager: CoreVariablesManager,
     rumbleManager: RumbleManager,
     private val linkedGame: Game? = null,
+    private val netLink: GameLink.Connection? = null,
 ) : ViewModel(), DefaultLifecycleObserver {
     class Factory(
         private val appContext: Context,
@@ -77,6 +80,7 @@ class BaseGameScreenViewModel(
         private val coreVariablesManager: CoreVariablesManager,
         private val rumbleManager: RumbleManager,
         private val linkedGame: Game? = null,
+        private val netLink: GameLink.Connection? = null,
     ) : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return BaseGameScreenViewModel(
@@ -94,6 +98,7 @@ class BaseGameScreenViewModel(
                 coreVariablesManager,
                 rumbleManager,
                 linkedGame,
+                netLink,
             ) as T
         }
     }
@@ -204,7 +209,15 @@ class BaseGameScreenViewModel(
         requestLoadSave: Boolean,
     ) {
         Timber.i("Calling load game: $game")
-        retroGameView.initialize(applicationContext, game, systemCoreConfig, gameLoader, requestLoadSave, linkedGame)
+        retroGameView.initialize(
+            applicationContext,
+            game,
+            systemCoreConfig,
+            gameLoader,
+            requestLoadSave,
+            linkedGame,
+            netLink?.let { NetLink(it) },
+        )
     }
 
     fun showEditControls(show: Boolean) {

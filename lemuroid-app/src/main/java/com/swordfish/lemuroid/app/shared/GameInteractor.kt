@@ -8,6 +8,7 @@ import androidx.core.content.ContextCompat
 import com.swordfish.lemuroid.R
 import com.swordfish.lemuroid.app.mobile.feature.shortcuts.ShortcutsGenerator
 import com.swordfish.lemuroid.app.shared.game.GameLauncher
+import com.swordfish.lemuroid.app.shared.link.GameLink
 import com.swordfish.lemuroid.app.shared.link.LocalLink
 import com.swordfish.lemuroid.app.shared.main.BusyActivity
 import com.swordfish.lemuroid.common.displayToast
@@ -56,6 +57,19 @@ class GameInteractor(
             return
         }
         gameLauncher.launchLinkedGamesAsync(activity.activity(), game, linkedGame, useLeanback)
+    }
+
+    fun onGameNetLink(
+        game: Game,
+        connection: GameLink.Connection,
+    ) {
+        if (!ensureNotBusy()) {
+            return
+        }
+        if (!ensureNotificationsPermissionAvailable()) {
+            return
+        }
+        gameLauncher.launchNetLinkAsync(activity.activity(), game, connection, useLeanback)
     }
 
     /** Games that [game] can be linked with on this device, or none if it has no link cable. */

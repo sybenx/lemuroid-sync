@@ -26,19 +26,29 @@ object LocalLink {
 
     fun isSupported(game: Game): Boolean = game.systemId in SYSTEMS
 
+    /**
+     * @param netPlayer this device's player when the other Game Boy is on another device: only its screen
+     * and sound are played here.
+     */
     fun coreConfig(
         game: Game,
         portrait: Boolean,
+        netPlayer: Int? = null,
     ): SystemCoreConfig {
         val controllerConfigs = GameSystem.findById(game.systemId).systemCoreConfigs.first().controllerConfigs
+        val screens =
+            if (netPlayer != null) {
+                listOf(
+                    CoreVariable("tgbdual_single_screen_mp", if (netPlayer == 0) "player 1 only" else "player 2 only"),
+                    audioVariable(netPlayer),
+                )
+            } else {
+                listOf(CoreVariable(SCREEN_PLACEMENT, if (portrait) SCREEN_PLACEMENT_STACKED else "left-right"))
+            }
         return SystemCoreConfig(
             CoreID.TGBDUAL,
             controllerConfigs = controllerConfigs,
-            defaultSettings =
-                listOf(
-                    CoreVariable("tgbdual_gblink_enable", "enabled"),
-                    CoreVariable(SCREEN_PLACEMENT, if (portrait) SCREEN_PLACEMENT_STACKED else "left-right"),
-                ),
+            defaultSettings = listOf(CoreVariable("tgbdual_gblink_enable", "enabled")) + screens,
             // A state would hold both games, and the next link could be with another one.
             statesSupported = false,
         )
