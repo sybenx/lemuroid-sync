@@ -215,9 +215,13 @@ class LinkCableActivity : RetrogradeComponentActivity() {
         game: Game,
         onPick: (Game) -> Unit,
     ) {
-        val partners by produceState<List<Game>?>(null, game) {
+        // Games known to work with this one come first, so Yellow isn't buried halfway down when Red is open.
+        val partners by produceState<List<Pair<Game, LinkCompatibility.Link?>>?>(null, game) {
             value =
-                retrogradeDb.gameDao().asyncSelectBySystems(LocalLink.SYSTEMS).filter { it.id != game.id }
+                retrogradeDb.gameDao().asyncSelectBySystems(LocalLink.SYSTEMS)
+                    .filter { it.id != game.id }
+                    .map { it to LinkCompatibility.describe(game, it) }
+                    .sortedBy { (_, link) -> link == null }
         }
 
         val loaded = partners ?: return
@@ -239,7 +243,7 @@ class LinkCableActivity : RetrogradeComponentActivity() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            items(loaded, key = { it.id }) { partner ->
+            items(loaded, key = { it.first.id }) { (partner, link) ->
                 Row(
                     modifier =
                         Modifier
@@ -251,7 +255,7 @@ class LinkCableActivity : RetrogradeComponentActivity() {
                     LemuroidSmallGameImage(modifier = Modifier.width(48.dp).height(48.dp), game = partner)
                     Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
                         LemuroidGameTexts(game = partner)
-                        LinkCompatibility.describe(game, partner)?.let { link ->
+                        link?.let { link ->
                             Text(
                                 text =
                                     stringResource(
