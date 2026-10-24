@@ -7,6 +7,9 @@ name: Build Lemuroid Sync
 on:
   push:
     branches: [sync]
+    paths-ignore: # README-only pushes would publish an identical release
+      - README.md
+      - .github/badge_obtainium.png
   schedule:
     - cron: "17 6 * * *" # daily: pick up new upstream releases
   workflow_dispatch:
