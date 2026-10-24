@@ -2,6 +2,15 @@
 
 A fork of [Lemuroid](https://github.com/Swordfish90/Lemuroid) that keeps saves in sync with other devices. Releases are built automatically from each new Lemuroid release; install them with [Obtainium](https://github.com/ImranR98/Obtainium) using this repo's URL.
 
+**Install on your phone:**
+
+1. [Download Obtainium](https://github.com/ImranR98/Obtainium/releases/latest/download/app-release.apk) and open the file to install it (Android asks you to allow installs from your browser the first time).
+2. Tap the badge, then *Add* and *Install* in Obtainium. It keeps Lemuroid Sync up to date from then on.
+
+[<img src=".github/badge_obtainium.png"
+     alt="Get it on Obtainium"
+     height="60">](https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/sybenx/lemuroid-sync)
+
 - **Save sync to a folder:** Settings → *Save sync* → *External Directory* syncs saves (and, if you choose, states) with a folder you pick, so Syncthing (or BasicSync) can sync it with other devices. With *Auto sync* on, it syncs before and after each game. Blank saves are never synced, unchanged saves are not rewritten, and the app warns before playing if the folder has no saves yet. This is the [External Directory save sync](https://github.com/Swordfish90/Lemuroid/issues/158) planned for upstream Lemuroid.
 - **Miyoo handhelds running spruceOS:** works with RetroArch's flat save folder (`sort_savefiles_enable = "false"`), syncing `Saves/saves` with the `saves` folder inside the folder above. Settings → *Save sync* → *DS save location* → *Miyoo Flip / DSperate* stores DS saves as `dsperate/<game>.sav`, like DSperate. [`spruceos/skip-stale-resume.sh`](spruceos/skip-stale-resume.sh) stops spruceOS from resuming an older auto state over a newer synced save.
 - **Installs next to Lemuroid** (app ID `com.swordfish.lemuroid.sync`). ROM file names must match across devices for saves to line up.
