@@ -7,9 +7,6 @@ name: Build Lemuroid Sync
 on:
   push:
     branches: [sync]
-    paths-ignore: # README-only pushes would publish an identical release
-      - README.md
-      - .github/badge_obtainium.png
   schedule:
     - cron: "17 6 * * *" # daily: pick up new upstream releases
   workflow_dispatch:
@@ -62,7 +59,11 @@ jobs:
             fi
             git commit -q --no-edit
           fi
-          release_tag="sync-${upstream_tag}-$(git rev-parse --short=8 origin/sync)"
+          # Named after the last commit that changes the app, so README and workflow pushes don't
+          # publish an identical release.
+          app_rev=$(git rev-parse --short=8 "$(git log -1 --format=%H origin/sync -- . ':(exclude)README.md' ':(exclude).github')")
+          release_tag="sync-${upstream_tag}-${app_rev}"
+          echo "app_rev=${app_rev}" >> "$GITHUB_OUTPUT"
           echo "upstream_tag=${upstream_tag}" >> "$GITHUB_OUTPUT"
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
           if gh release view "${release_tag}" >/dev/null 2>&1; then
@@ -134,7 +135,7 @@ jobs:
           gh release create "${{ steps.merge.outputs.release_tag }}" lemuroid-sync.apk \
             --target sync \
             --title "Lemuroid Sync (upstream ${{ steps.merge.outputs.upstream_tag }})" \
-            --notes "Lemuroid ${{ steps.merge.outputs.upstream_tag }} + sync branch $(git rev-parse --short=8 origin/sync): saves mirrored to a user-picked folder for Syncthing."
+            --notes "Lemuroid ${{ steps.merge.outputs.upstream_tag }} + sync branch ${{ steps.merge.outputs.app_rev }}: saves mirrored to a user-picked folder for Syncthing."
 
   keepalive:
     # GitHub disables scheduled workflows in repos with no activity for 60 days; re-enabling
